@@ -347,6 +347,110 @@ POST /derivatives/price
 
 ---
 
+## User Flow
+
+### Step 1 — Home Page
+User opens the app and sees:
+- Current energy market overview (latest data timestamp)
+- Summary of last analysis (if any)
+- A prominent "Start Analysis" button
+
+### Step 2 — Configure Analysis
+User clicks "Start Analysis" and sets:
+- **Time range**: historical data window (e.g. past 5 years)
+- **Prediction targets**: regime classification / WTI price direction / XLE outperformance / or all
+- **Advanced options** (collapsible): feature window sizes, ensemble count, enable anomaly detection
+
+### Step 3 — Agent Reasoning Stream (core experience)
+User clicks "Run". The page switches to a real-time streaming view with two columns:
+
+**Left — Agent Thought Stream** (WebSocket, live)
+```
+🔍 Fetching EIA inventory data and FRED macro series...
+⚙️  Tool call: engineer_features (windows: 20d, 60d)
+🧠 Feature set score: 0.71 — adding yield curve slope feature...
+⚙️  Tool call: run_tabpfn (classification)
+📊 Regime: Geopolitical Spike (confidence 82%)
+⚙️  Tool call: run_tabpfn (regression — WTI direction)
+💡 WTI likely up next 4 weeks. XLE expected to outperform SPY.
+✅ Analysis complete
+```
+
+**Right — Results Rendered Live**
+- Regime card (appears as soon as classified)
+- WTI price direction indicator
+- Confidence bars filling in progressively
+
+### Step 4 — Full Dashboard
+Once complete, the full dashboard renders:
+- **Regime card**: current regime + historical regime timeline
+- **WTI direction card**: predicted direction + confidence interval
+- **Geopolitical Risk chart**: GPR index overlay on WTI price
+- **Feature importance chart**: SHAP values — which signals drove the prediction
+- **Backtest chart**: walk-forward strategy performance vs. SPY benchmark
+- **Agent analysis report**: natural language summary of the full reasoning chain
+
+### Step 5 — Derivatives Panel (Phase 2)
+Below the main dashboard, a "Derivatives Exposure" panel:
+- User inputs: spot price, strike, tenor, option style (European / American)
+- Regime auto-fills the vol assumption
+- Panel renders:
+  - Animated Monte Carlo path fan chart
+  - Payoff surface (price vs. time)
+  - Greeks dashboard (delta, gamma, vega, theta)
+  - European vs. American side-by-side comparison
+
+### Step 6 — Follow-up Questions
+User can type follow-up questions in a chat box below the report:
+- "Why is energy expected to outperform?"
+- "What if the GPR index rises another 10 points?"
+- "Show me how the model performed during the 2022 war spike"
+
+Agent calls the relevant tools and streams back the answer.
+
+### Step 7 — Save & Export
+- Analysis saved to history (accessible from home page)
+- Export as PDF report or CSV data
+- Shareable read-only link
+
+---
+
+## Manual Setup Steps (Post-Scaffold)
+
+The following cannot be automated and require manual action:
+
+### First-time setup
+- [ ] Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY`, `FRED_API_KEY`, `SECRET_KEY`, `JWT_SECRET`
+- [ ] Run `make install` to install backend (`uv sync`) and frontend (`npm install`) dependencies
+- [ ] Run `npx shadcn@latest init` inside `frontend/` to initialize shadcn/ui component library
+- [ ] Run `make migrate` once PostgreSQL is running to apply database migrations
+
+### CI/CD secrets (GitHub)
+Add these in **Settings → Secrets → Actions** on the GitHub repo:
+- [ ] `ANTHROPIC_API_KEY`
+- [ ] `FRED_API_KEY`
+- [ ] `SENTRY_DSN`
+
+### Observability
+- [ ] Create a [Sentry](https://sentry.io) project, copy the DSN to `.env` and GitHub secrets
+- [ ] (Optional) Set up Prometheus + Grafana for metrics — add `prometheus-fastapi-instrumentator` to backend
+
+### Auth providers
+- [ ] Configure NextAuth.js providers in `frontend/app/api/auth/[...nextauth]/route.ts` (GitHub OAuth, Google OAuth, or credentials)
+- [ ] Add OAuth app credentials to `.env`
+
+### Cloud deployment
+- [ ] **Frontend**: Deploy to [Vercel](https://vercel.com) — connect GitHub repo, set `NEXT_PUBLIC_API_URL` env var
+- [ ] **Backend**: Deploy to [Railway](https://railway.app) or [Render](https://render.com) — provision PostgreSQL + Redis add-ons
+- [ ] Update CORS `allow_origins` in `backend/api/main.py` to production frontend URL
+
+### Monitoring (production)
+- [ ] Set up log aggregation (Datadog, Logtail, or Axiom)
+- [ ] Configure uptime monitoring (Better Uptime, Checkly)
+- [ ] Set up database backups on Railway/Render
+
+---
+
 ## Inspiration / Related Work
 
 - [TabPFN (PriorLabs)](https://github.com/PriorLabs/TabPFN) — core inference engine
