@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:8000";
+const MAX_MESSAGES = 200;
 
 export type StreamMessage =
   | { type: "thought"; content: string }
@@ -19,13 +20,19 @@ export function useRunStream(runId: string | null) {
   useEffect(() => {
     if (!runId) return;
 
+    setMessages([]);
+
     ws.current = new WebSocket(`${WS_URL}/ws/runs/${runId}/stream`);
 
     ws.current.onopen = () => setConnected(true);
     ws.current.onclose = () => setConnected(false);
     ws.current.onmessage = (event) => {
       const msg = JSON.parse(event.data as string) as StreamMessage;
-      setMessages((prev) => [...prev, msg]);
+      setMessages((prev) =>
+        prev.length >= MAX_MESSAGES
+          ? [...prev.slice(1), msg]
+          : [...prev, msg]
+      );
     };
 
     return () => ws.current?.close();

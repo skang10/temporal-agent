@@ -1,4 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const REQUEST_TIMEOUT_MS = 30_000;
+
+export type RunStatus = "pending" | "running" | "completed" | "failed";
 
 export type AnalyzeRequest = {
   date_range_start: string;
@@ -8,7 +11,7 @@ export type AnalyzeRequest = {
 
 export type RunResult = {
   run_id: string;
-  status: string;
+  status: RunStatus;
   result: Record<string, unknown> | null;
 };
 
@@ -23,12 +26,20 @@ export type DerivativesPriceRequest = {
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
-    ...init,
-  });
-  if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
-  return res.json() as Promise<T>;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: { "Content-Type": "application/json" },
+      signal: controller.signal,
+      ...init,
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}: ${await res.text()}`);
+    return res.json() as Promise<T>;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export const api = {
