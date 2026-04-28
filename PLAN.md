@@ -1,0 +1,355 @@
+# TemporalAgent — Project Plan
+
+An agentic analytics system that detects oil market regime shifts using macro, geopolitical, and energy-specific signals — bridging time series and tabular data with TabPFN as the inference backbone and an LLM agent as the reasoning orchestrator.
+
+## Core Concept
+
+Most real-world prediction problems have both a temporal dimension (things change over time) and a cross-sectional dimension (entities differ). TemporalAgent handles both — featurizing time series into tabular snapshots for TabPFN, orchestrated by an agent that decides what to look at, explains what it finds, and iterates.
+
+**Key TabPFN advantage exploited**: In-context learning means no retraining. When new data arrives, just update the context window — a genuine architectural advantage over tree models for streaming/online scenarios.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        LLM Agent                            │
+│   (orchestrates tools, reasons about features, explains)    │
+└────────┬──────────────┬──────────────┬──────────────────────┘
+         │              │              │
+    fetch_data    engineer_features   explain
+    run_tabpfn    backtest            detect_drift
+         │              │              │
+┌────────▼──────────────▼──────────────▼──────────────────────┐
+│              TimeSeriesFeaturizer                            │
+│  rolling stats │ lag features │ momentum │ regime features   │
+└────────────────────────────────┬─────────────────────────────┘
+                                 │
+              ┌──────────────────▼──────────────────┐
+              │         Tabular Feature Matrix       │
+              │  (time series features + static      │
+              │   metadata, text embeddings, etc.)   │
+              └──────────────────┬──────────────────┘
+                                 │
+              ┌──────────────────▼──────────────────┐
+              │    TabPFN Inference Engine           │
+              │  Classifier (regime/event)           │
+              │  Regressor (value/score)             │
+              │  Uncertainty quantification          │
+              └─────────────────────────────────────┘
+```
+
+---
+
+## Components
+
+### 1. `TimeSeriesFeaturizer`
+Transforms raw time series into tabular snapshots.
+- Rolling statistics: mean, std, min/max, skewness over multiple windows (5d, 20d, 60d)
+- Lag features: t-1, t-5, t-20
+- Momentum and rate-of-change
+- Energy-specific regime features: inventory trend slope, rig count momentum, GPR level
+- Enforces temporal ordering — no data leakage
+
+### 2. TabPFN Inference Engine
+Wraps `TabPFNClassifier` and `TabPFNRegressor` from the TabPFN library.
+- Regime classifier: bull supercycle / range-bound / bust / geopolitical spike
+- WTI price direction predictor: up/down next 4 weeks
+- Energy equity outperformance predictor: XLE vs SPY next quarter
+- Uncertainty quantification via ensemble diversity
+
+### 3. LLM Agent
+Orchestrates the full pipeline with tool use.
+
+**Tools:**
+- `fetch_data(source, series, date_range)` — pulls from EIA, FRED, yfinance
+- `engineer_features(data, window_sizes, feature_types)` — calls TimeSeriesFeaturizer
+- `run_tabpfn(X_train, y_train, X_test, task_type)` — runs inference
+- `evaluate_features(feature_importances)` — SHAP-based analysis via tabpfn-extensions
+- `detect_drift(recent_data, historical_data)` — flags distribution shift
+- `explain_prediction(prediction, features, context)` — natural language explanation
+- `backtest(strategy, date_range)` — walk-forward evaluation
+- `fetch_geopolitical_risk(date_range)` — pulls GPR index from Fed
+
+**Agent loop (ReAct-style):**
+```
+Observe → Think → Act → Observe → ...
+```
+
+Agent iterates: tries feature set → evaluates → refines → explains
+
+### 4. Temporal Evaluation Framework
+Walk-forward cross-validation — no future data leaks into training context.
+- Backtesting with Sharpe ratio, regime accuracy metrics
+- Comparison vs. baselines (XGBoost, simple momentum)
+- Uncertainty calibration plots
+
+---
+
+## Domain: Energy / Oil & Gas Market Intelligence
+
+**Why:** Driven by a small, well-defined set of signals that map cleanly to tabular features. Regime shifts are historically distinct and well-labeled. Geopolitical risk (Russia-Ukraine, Middle East) is the unique angle most quant models ignore — directly quantifiable via the Fed's free Geopolitical Risk Index. Highly relevant and easy to explain to any interviewer.
+
+### Data Sources
+
+| Signal | Type | Source |
+|---|---|---|
+| WTI / Brent crude price | Time series | `yfinance` |
+| EIA weekly inventory builds | Time series | EIA API (free) |
+| Baker Hughes rig count | Time series | `yfinance` / BH website |
+| OPEC production quota changes | Tabular event | manual / news |
+| US dollar index (DXY) | Time series | `yfinance` |
+| Global PMI / industrial demand | Time series | `fredapi` |
+| Geopolitical Risk Index (GPR) | Time series | Federal Reserve (free) |
+| Refinery utilization rate | Time series | EIA API (free) |
+
+### Prediction Tasks
+1. **Regime classification**: bull supercycle / range-bound / bust / geopolitical spike
+2. **WTI price direction**: up/down over next 4 weeks
+3. **Energy equity outperformance**: will XLE beat SPY next quarter?
+
+### Agent Reasoning Example
+> "Rig count is falling while inventory builds are rising → supply response lagging → regime likely transitioning from contraction to early recovery → historically XLE and OIH outperform in this phase → confidence 78%"
+
+### Historical Regimes (training labels)
+- **Supercycle**: 2021–2022 (post-COVID demand + Russia-Ukraine war spike)
+- **Bust**: 2014–2016 (shale glut), 2020 (COVID demand collapse)
+- **Geopolitical spike**: 2022 Feb–Mar (Russia invasion), 2024 Middle East escalation
+- **Range-bound**: 2017–2019, 2023
+
+---
+
+## Future Extension: Image Data (Phase 2)
+
+Adding satellite imagery as an additional signal source — a natural next step once the core pipeline is stable:
+
+- **Oil storage tank fill levels** — satellite images of floating-roof tanks; shadow angle reveals inventory volume. Provides independent cross-check against EIA reports.
+- **Refinery activity** — thermal/optical imagery of refinery flare stacks and facility activity
+- **Shipping traffic** — satellite AIS + imagery of tanker congestion at key chokepoints (Strait of Hormuz, Suez)
+
+**Pipeline addition:**
+```
+Satellite image → vision encoder (e.g. DINOv2) → embedding vector
+                                                          ↓
+                                    Concatenate with tabular features
+                                                          ↓
+                                              TabPFN (unchanged)
+```
+
+This keeps TabPFN as the unchanged inference engine — images just become additional numerical columns after embedding, requiring PCA or feature selection to stay within the 2000-feature limit.
+
+---
+
+## Key Technical Differentiator
+
+Agent-driven iterative feature refinement:
+
+```python
+for iteration in range(max_iterations):
+    features = engineer_features(data, current_config)
+    cv_score = temporal_cross_validate(tabpfn, features, labels)
+
+    if cv_score > threshold:
+        break
+
+    next_config = agent.reason(
+        current_score=cv_score,
+        feature_importances=get_shap_values(tabpfn, features),
+        data_characteristics=describe_data(data),
+    )
+    current_config = next_config
+```
+
+---
+
+## Repo Structure
+
+Two separate repositories:
+
+```
+temporal-agent/        # Python backend
+temporal-agent-ui/     # Next.js frontend
+```
+
+### `temporal-agent` (backend)
+FastAPI server exposing REST and WebSocket endpoints. All agent logic, TabPFN inference, and data pipelines live here.
+
+```
+temporal-agent/
+├── src/
+│   ├── agent/         # LLM agent, tools, ReAct loop
+│   ├── featurizer/    # TimeSeriesFeaturizer
+│   ├── inference/     # TabPFN wrappers
+│   ├── data/          # FRED, yfinance connectors
+│   └── eval/          # Walk-forward backtest
+├── api/               # FastAPI routes + WebSocket handlers
+├── tests/
+└── pyproject.toml
+```
+
+### `temporal-agent-ui` (frontend)
+Next.js app. Consumes the backend API and streams agent reasoning steps in real time via WebSocket.
+
+```
+temporal-agent-ui/
+├── app/               # Next.js app router pages
+├── components/
+│   ├── RegimeDashboard/       # Oil market regime display
+│   ├── PriceDirectionCard/    # WTI/Brent prediction
+│   ├── GeopoliticalRiskChart/ # GPR index overlay
+│   ├── AgentStream/           # Live agent thought stream
+│   ├── FeatureImportance/     # SHAP chart
+│   └── BacktestChart/         # Walk-forward performance
+├── lib/               # API client, WebSocket hook
+└── package.json
+```
+
+### API Contract (backend → frontend)
+
+**REST:**
+- `POST /analyze` — trigger a full analysis run, returns `run_id`
+- `GET /runs/{run_id}` — fetch completed run results
+- `GET /history` — past analyses
+
+**WebSocket:**
+- `WS /runs/{run_id}/stream` — streams agent steps in real time
+
+```json
+// Stream message format
+{ "type": "thought",      "content": "Classifying current macro regime..." }
+{ "type": "tool_call",    "tool": "run_tabpfn", "input": { ... } }
+{ "type": "tool_result",  "tool": "run_tabpfn", "output": { ... } }
+{ "type": "prediction",   "regime": "slowdown", "confidence": 0.82 }
+{ "type": "done",         "summary": "..." }
+```
+
+WebSocket streaming is important here — the agent's ReAct loop is iterative and can take several seconds. Streaming each step to the UI makes the reasoning transparent and the UX feel alive.
+
+---
+
+## Tech Stack
+
+| Layer | Tool |
+|---|---|
+| Agent framework | Claude API with tool use, or LangGraph for multi-agent |
+| TabPFN | `tabpfn` + `tabpfn-extensions` (SHAP) |
+| Time series features | `tsfresh` or manual + `pandas` |
+| Data | `fredapi`, `yfinance`, EIA API |
+| Eval | Custom walk-forward backtest + `scikit-learn` |
+| Backend | FastAPI + WebSocket |
+| Frontend | Next.js (React) |
+| UI components | shadcn/ui + Recharts / Tremor for charts |
+
+---
+
+## Phase 2: Derivatives Exposure Visualization
+
+Once the core regime prediction pipeline is stable, the regime output becomes the **input** to a derivatives pricing module. This is the "action layer" on top of TabPFN — what a trader actually does with the regime signal.
+
+### The Bridge
+
+```
+TabPFN regime classification
+        ↓
+Vol regime lookup (historical realized vol per regime)
+e.g. geopolitical spike → σ ≈ 45%, range-bound → σ ≈ 22%
+        ↓
+Stochastic valuation model
+        ↓
+Monte Carlo path simulation
+        ↓
+European / American call pricing + visualization
+```
+
+The agent surfaces this naturally:
+> "Current regime: geopolitical spike. Historical 30-day realized vol in this regime: 45%. Here is what a WTI 1-month call at strike $85 looks like under these conditions."
+
+### Stochastic Models
+
+| Model | When to use |
+|---|---|
+| **GBM** (Geometric Brownian Motion) | Baseline, simple, good for European calls |
+| **Heston** (stochastic volatility) | More realistic for energy — vol is not constant |
+
+### Simulation Output
+
+- **N simulated WTI price paths** over option tenor
+- **European call price**: `E[max(S_T - K, 0)]` discounted
+- **American call price**: Longstaff-Schwartz or binomial tree (early exercise premium)
+- **Greeks**: delta, gamma, vega, theta
+
+### UI Components (additions to `temporal-agent-ui`)
+
+```
+components/
+├── DerivativesPanel/
+│   ├── PathFanChart/        # Animated Monte Carlo paths (fan chart)
+│   ├── PayoffSurface/       # 3D payoff vs. price vs. time
+│   ├── GreeksDashboard/     # Delta, gamma, vega, theta gauges
+│   └── EuroVsAmericanCard/  # Side-by-side price + early exercise premium
+```
+
+### Backend additions (`temporal-agent`)
+
+```
+src/
+├── derivatives/
+│   ├── models.py        # GBM, Heston simulation
+│   ├── pricing.py       # European (analytical + MC), American (LSM)
+│   └── greeks.py        # Numerical Greeks via finite difference
+```
+
+### New API endpoint
+
+```
+POST /derivatives/price
+{
+  "regime": "geopolitical_spike",
+  "spot": 87.5,
+  "strike": 90.0,
+  "tenor_days": 30,
+  "option_type": "call",
+  "style": "european" | "american",
+  "n_paths": 10000
+}
+```
+
+### Tech additions
+
+| Layer | Tool |
+|---|---|
+| Stochastic simulation | `numpy` (GBM), `quantlib-python` or custom (Heston/LSM) |
+| 3D visualization | Three.js or Plotly (via API response) |
+| Animated paths | Framer Motion or D3.js |
+
+---
+
+## Scope Tiers
+
+| Tier | Scope | Timeframe |
+|---|---|---|
+| **MVP** | FastAPI backend, single-agent, oil regime classification, basic Next.js UI | 2–3 weeks |
+| **Mid** | Multi-tool agent, WTI direction + XLE prediction, backtesting, WebSocket streaming, full dashboard | 4–6 weeks |
+| **Full** | Multi-agent, geopolitical spike detection, derivatives panel (Phase 2), satellite image embeddings (Phase 2), polished UI | 8–12 weeks |
+
+---
+
+## What This Demonstrates
+
+| Skill | How |
+|---|---|
+| Software engineering | Modular architecture, clean APIs, data pipeline, temporal split discipline |
+| Agent development | Multi-step tool use, ReAct loop, reflection, explanation generation |
+| Tabular data | Feature modality handling, dimensionality management, TabPFN ensemble configs |
+| Time series | Temporal featurization, leakage prevention, regime awareness, walk-forward eval |
+| Quant finance | Stochastic vol models, Monte Carlo simulation, options pricing, Greeks |
+
+---
+
+## Inspiration / Related Work
+
+- [TabPFN (PriorLabs)](https://github.com/PriorLabs/TabPFN) — core inference engine
+- [tabpfn-extensions](https://github.com/priorlabs/tabpfn-extensions) — SHAP, embeddings, HPO
+- [HUPD](https://patentdataset.org/) — alternative domain (patent grant prediction)
+- [tsfresh](https://tsfresh.readthedocs.io/) — automated time series feature extraction
