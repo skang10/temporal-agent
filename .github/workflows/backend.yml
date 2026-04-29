@@ -86,7 +86,9 @@ jobs:
 
       - name: Security scan
         working-directory: backend
-        run: uv run pip-audit --requirement <(uv export --no-dev --format requirements-txt)
+        run: |
+          uv export --no-dev --format requirements-txt > /tmp/requirements.txt
+          uvx pip-audit --requirement /tmp/requirements.txt
 
   docker:
     runs-on: ubuntu-latest
