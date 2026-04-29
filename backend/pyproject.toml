@@ -27,7 +27,7 @@ dependencies = [
     "tabpfn>=7.1.1",
     "pandas>=2.2.0",
     "numpy>=2.0.0",
-    "scikit-learn>=1.5.0",
+    "scikit-learn>=1.8.0",
     # Data sources
     "yfinance>=0.2.40",
     "fredapi>=0.5.2",
