@@ -75,3 +75,23 @@ jobs:
           REDIS_URL: redis://localhost:6379
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          files: backend/coverage.xml
+          flags: backend
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Security scan
+        working-directory: backend
+        run: uv run pip-audit --requirement <(uv export --no-dev --format requirements-txt)
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build ./backend -t temporal-agent-backend:ci

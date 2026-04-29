@@ -49,6 +49,7 @@ dev = [
     "ruff>=0.7.0",
     "mypy>=1.11.0",
     "pre-commit>=4.0.0",
+    "pip-audit>=2.7.0",
 ]
 
 [tool.ruff]

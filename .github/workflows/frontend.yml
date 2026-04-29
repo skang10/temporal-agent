@@ -39,9 +39,28 @@ jobs:
         working-directory: frontend
         run: npm run test
 
+      - name: Security scan
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
       - name: Build
         working-directory: frontend
         run: npm run build
         env:
           NEXT_PUBLIC_API_URL: http://localhost:8000
           NEXT_PUBLIC_WS_URL: ws://localhost:8000
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v4
+        with:
+          flags: frontend
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build ./frontend -t temporal-agent-frontend:ci
