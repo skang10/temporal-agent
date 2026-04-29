@@ -15,6 +15,13 @@ export type RunResult = {
   result: Record<string, unknown> | null;
 };
 
+export type HistoryItem = {
+  run_id: string;
+  created_at: string;
+  regime: string | null;
+  status: RunStatus;
+};
+
 export type DerivativesPriceRequest = {
   regime: string;
   spot: number;
@@ -53,7 +60,7 @@ export const api = {
     request<RunResult>(`/api/runs/${runId}`),
 
   getHistory: () =>
-    request<RunResult[]>("/api/history"),
+    request<HistoryItem[]>("/api/history"),
 
   priceDerivative: (body: DerivativesPriceRequest) =>
     request("/api/derivatives/price", {

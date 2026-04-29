@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from api.models import RunStatus
@@ -15,4 +15,7 @@ class HistoryItem(BaseModel):
 
 @router.get("/history", response_model=list[HistoryItem])
 async def get_history() -> list[HistoryItem]:
-    raise NotImplementedError
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Run history is not implemented yet.",
+    )

@@ -13,11 +13,11 @@ build:
 	docker-compose build
 
 install:
-	cd backend && uv sync
+	cd backend && uv sync --extra dev
 	cd frontend && npm install
 
 test:
-	cd backend && uv run pytest --cov=src --cov-report=term-missing
+	cd backend && SECRET_KEY=test-secret-key JWT_SECRET=test-jwt-secret uv run python -m pytest --cov=src --cov=api --cov-report=term-missing
 	cd frontend && npm run test
 
 lint:

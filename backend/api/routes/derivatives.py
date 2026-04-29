@@ -1,6 +1,7 @@
-from fastapi import APIRouter
-from pydantic import BaseModel
 from typing import Literal
+
+from fastapi import APIRouter, HTTPException, status
+from pydantic import BaseModel
 
 router = APIRouter(tags=["derivatives"])
 
@@ -27,4 +28,7 @@ class DerivativesPriceResponse(BaseModel):
 @router.post("/derivatives/price", response_model=DerivativesPriceResponse)
 async def price_derivative(request: DerivativesPriceRequest) -> DerivativesPriceResponse:
     # TODO: route to GBM or Heston based on regime, run Monte Carlo
-    raise NotImplementedError
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Derivatives pricing is not implemented yet.",
+    )

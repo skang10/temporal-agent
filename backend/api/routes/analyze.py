@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel
 
 from api.models import RunResult
@@ -18,9 +18,15 @@ class AnalyzeResponse(BaseModel):
 
 @router.post("/analyze", response_model=AnalyzeResponse)
 async def trigger_analysis(request: AnalyzeRequest) -> AnalyzeResponse:
-    raise NotImplementedError
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Analysis pipeline is not implemented yet.",
+    )
 
 
 @router.get("/runs/{run_id}", response_model=RunResult)
 async def get_run(run_id: str) -> RunResult:
-    raise NotImplementedError
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Run storage is not implemented yet.",
+    )
