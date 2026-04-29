@@ -60,9 +60,11 @@ jobs:
 
       - name: Test
         working-directory: backend
-        run: uv run pytest --cov=src --cov-report=xml
+        run: uv run pytest --cov=src --cov=api --cov-report=xml
         env:
           ENVIRONMENT: test
+          SECRET_KEY: ci-test-secret-key
+          JWT_SECRET: ci-test-jwt-secret
           DATABASE_URL: postgresql+asyncpg://temporal:temporal@localhost:5432/temporal_agent_test
           REDIS_URL: redis://localhost:6379
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
