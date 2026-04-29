@@ -1,9 +1,10 @@
-.PHONY: dev dev-backend dev-frontend build test lint install migrate
+.PHONY: dev dev-backend dev-frontend build test lint install migrate db-revision clean
 
 dev:
 	docker-compose up
 
 dev-backend:
+	@test -f .env || (echo "ERROR: .env not found. Run: cp .env.example .env and fill in secrets." && exit 1)
 	cd backend && uv run uvicorn api.main:app --reload --port 8000
 
 dev-frontend:
