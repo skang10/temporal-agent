@@ -53,31 +53,23 @@ jobs:
       - name: Lint
         working-directory: backend
         run: uv run ruff check .
-        env:
-          SECRET_KEY: ci-test-secret-key
-          JWT_SECRET: ci-test-jwt-secret
 
       - name: Type check
         working-directory: backend
         run: uv run mypy src/
-        env:
-          SECRET_KEY: ci-test-secret-key
-          JWT_SECRET: ci-test-jwt-secret
 
       - name: Test
         working-directory: backend
         run: uv run pytest --cov=src --cov=api --cov-report=xml
         env:
           ENVIRONMENT: test
-          SECRET_KEY: ci-test-secret-key
-          JWT_SECRET: ci-test-jwt-secret
           DATABASE_URL: postgresql+asyncpg://temporal:temporal@localhost:5432/temporal_agent_test
           REDIS_URL: redis://localhost:6379
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
 
       - name: Upload coverage
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
           files: backend/coverage.xml
           flags: backend
@@ -92,6 +84,7 @@ jobs:
 
   docker:
     runs-on: ubuntu-latest
+    needs: lint-and-test
     steps:
       - uses: actions/checkout@v4
 
