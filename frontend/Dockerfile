@@ -20,6 +20,7 @@ FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV HOSTNAME=0.0.0.0
 
 # Run as non-root
 RUN addgroup --system --gid 1001 nodejs && \
@@ -32,4 +33,4 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 EXPOSE 3000
 
-CMD ["node", "server.js", "--hostname", "0.0.0.0"]
+CMD ["node", "server.js"]
