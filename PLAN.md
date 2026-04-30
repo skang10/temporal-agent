@@ -85,6 +85,24 @@ Walk-forward cross-validation — no future data leaks into training context.
 - Comparison vs. baselines (XGBoost, simple momentum)
 - Uncertainty calibration plots
 
+### 5. Authentication
+
+JWT-based auth on the backend, NextAuth.js on the frontend. Dependencies are already installed (`python-jose`, `passlib[bcrypt]`, `next-auth`); the implementation is planned for the Mid tier.
+
+**Backend**
+- User model in PostgreSQL (SQLModel)
+- `POST /api/auth/register` — hashed password via `passlib[bcrypt]`
+- `POST /api/auth/token` — OAuth2 password flow, returns short-lived JWT access token
+- `JWT_SECRET` + `SECRET_KEY` added back to `Settings` when this is wired up
+- FastAPI `Depends(get_current_user)` dependency guards all non-public routes
+- Run history is scoped per user — `GET /api/history` returns only the authenticated user's runs
+
+**Frontend**
+- NextAuth.js with a Credentials provider backed by `POST /api/auth/token`
+- `useSession()` hook gates the dashboard; unauthenticated users are redirected to `/login`
+- API client attaches `Authorization: Bearer <token>` on every request
+- OAuth providers (GitHub, Google) can be added later by configuring NextAuth.js — no backend changes needed
+
 ---
 
 ## Domain: Energy / Oil & Gas Market Intelligence
@@ -420,7 +438,7 @@ Agent calls the relevant tools and streams back the answer.
 The following cannot be automated and require manual action:
 
 ### First-time setup
-- [ ] Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY`, `FRED_API_KEY`, `SECRET_KEY`, `JWT_SECRET`
+- [ ] Copy `.env.example` to `.env` and fill in `ANTHROPIC_API_KEY`, `FRED_API_KEY`
 - [ ] Run `make install` to install backend (`uv sync`) and frontend (`npm install`) dependencies
 - [ ] Run `npx shadcn@latest init` inside `frontend/` to initialize shadcn/ui component library
 - [ ] Run `make migrate` once PostgreSQL is running to apply database migrations
