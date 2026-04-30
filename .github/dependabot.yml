@@ -50,6 +50,9 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # python base image is versioned via .python-version — bump manually
+      - dependency-name: "python"
 
   - package-ecosystem: "docker"
     directory: "/frontend"
@@ -59,6 +62,9 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      # node base image is versioned via .nvmrc — bump manually
+      - dependency-name: "node"
 
   - package-ecosystem: "github-actions"
     directory: "/"
