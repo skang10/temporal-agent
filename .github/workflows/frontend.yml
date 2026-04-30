@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - "frontend/**"
+      - "docker-compose.yml"
 
 jobs:
   lint-and-test:
