@@ -2,18 +2,25 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+# Pin uv version for reproducible builds; update deliberately
+COPY --from=ghcr.io/astral-sh/uv:0.7 /uv /uvx /bin/
 
-# Install dependencies
-COPY pyproject.toml uv.lock* ./
-RUN uv sync --frozen --no-dev
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+# Install dependencies before copying source so this layer is cached
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-cache
 
 # Copy source
 COPY src/ ./src/
 COPY api/ ./api/
 COPY alembic/ ./alembic/
 COPY alembic.ini ./
+
+# Run as non-root
+RUN useradd --no-create-home --shell /bin/false appuser
+USER appuser
 
 EXPOSE 8000
 

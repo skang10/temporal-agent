@@ -39,9 +39,16 @@ Backend runs on `http://localhost:8000`, frontend on `http://localhost:3000`.
 
 ## Development
 
+Run the app servers directly with `uv`/`npm` for the fastest experience — HMR and hot reload are noticeably slower through Docker volume mounts. Use Docker only for the databases.
+
 ```bash
-make dev-backend    # FastAPI with hot reload
-make dev-frontend   # Next.js dev server
+# Start databases (Postgres + Redis)
+docker-compose up postgres redis
+
+# In separate terminals:
+make dev-backend    # FastAPI with hot reload on :8000
+make dev-frontend   # Next.js dev server on :3000
+
 make test           # Run all tests
 make lint           # Ruff + mypy + ESLint
 ```
