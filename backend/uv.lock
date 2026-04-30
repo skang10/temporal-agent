@@ -2386,7 +2386,7 @@ wheels = [
 
 [[package]]
 name = "temporal-agent-backend"
-version = "0.1.0"
+version = "0.1.1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -2424,6 +2424,11 @@ dev = [
     { name = "ruff" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "pre-commit" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "alembic", specifier = ">=1.13.0" },
@@ -2457,6 +2462,9 @@ requires-dist = [
     { name = "yfinance", specifier = ">=0.2.40" },
 ]
 provides-extras = ["dev"]
+
+[package.metadata.requires-dev]
+dev = [{ name = "pre-commit", specifier = ">=4.6.0" }]
 
 [[package]]
 name = "threadpoolctl"

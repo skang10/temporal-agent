@@ -70,3 +70,8 @@ testpaths = ["tests"]
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["src*", "api*"]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.0",
+]
