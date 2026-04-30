@@ -15,7 +15,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: postgres:17-alpine
         env:
           POSTGRES_USER: temporal
           POSTGRES_PASSWORD: temporal
@@ -52,7 +52,9 @@ jobs:
 
       - name: Lint
         working-directory: backend
-        run: uv run ruff check .
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
 
       - name: Type check
         working-directory: backend
