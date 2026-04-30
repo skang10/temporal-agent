@@ -9,6 +9,8 @@ dist/
 .pytest_cache/
 htmlcov/
 .coverage
+coverage.xml
+coverage/
 
 # Node
 node_modules/
