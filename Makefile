@@ -18,7 +18,7 @@ install:
 	cd frontend && npm install
 
 test:
-	cd backend && SECRET_KEY=test-secret-key JWT_SECRET=test-jwt-secret uv run python -m pytest --cov=src --cov=api --cov-report=term-missing
+	cd backend && uv run python -m pytest --cov=src --cov=api --cov-report=term-missing
 	cd frontend && npm run test
 
 lint:
