@@ -26,21 +26,17 @@ updates:
       - "dependencies"
       - "frontend"
     groups:
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
+          - "@vitejs/plugin-react"
       npm-minor-patch:
         patterns:
           - "*"
         update-types:
           - "minor"
           - "patch"
-
-  - package-ecosystem: "docker"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-    labels:
-      - "dependencies"
-      - "docker"
 
   - package-ecosystem: "docker"
     directory: "/backend"
