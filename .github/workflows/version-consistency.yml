@@ -4,21 +4,7 @@ on:
   push:
     branches:
       - main
-    paths:
-      - ".nvmrc"
-      - ".python-version"
-      - "frontend/Dockerfile"
-      - "backend/Dockerfile"
-      - ".github/workflows/frontend.yml"
-      - ".github/workflows/backend.yml"
   pull_request:
-    paths:
-      - ".nvmrc"
-      - ".python-version"
-      - "frontend/Dockerfile"
-      - "backend/Dockerfile"
-      - ".github/workflows/frontend.yml"
-      - ".github/workflows/backend.yml"
 
 jobs:
   check:
