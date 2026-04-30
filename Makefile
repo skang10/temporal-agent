@@ -16,6 +16,7 @@ build:
 install:
 	cd backend && uv sync --extra dev
 	cd frontend && npm install
+	pre-commit install
 
 test:
 	cd backend && uv run python -m pytest --cov=src --cov=api --cov-report=term-missing
