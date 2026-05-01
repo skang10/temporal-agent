@@ -20,13 +20,12 @@ export function useRunStream(runId: string | null) {
   useEffect(() => {
     if (!runId) return;
 
-    setMessages([]);
+    const socket = new WebSocket(`${WS_URL}/ws/runs/${runId}/stream`);
+    ws.current = socket;
 
-    ws.current = new WebSocket(`${WS_URL}/ws/runs/${runId}/stream`);
-
-    ws.current.onopen = () => setConnected(true);
-    ws.current.onclose = () => setConnected(false);
-    ws.current.onmessage = (event) => {
+    socket.onopen = () => setConnected(true);
+    socket.onclose = () => setConnected(false);
+    socket.onmessage = (event) => {
       const msg = JSON.parse(event.data as string) as StreamMessage;
       setMessages((prev) =>
         prev.length >= MAX_MESSAGES
@@ -35,7 +34,10 @@ export function useRunStream(runId: string | null) {
       );
     };
 
-    return () => ws.current?.close();
+    return () => {
+      socket.close();
+      setMessages([]);
+    };
   }, [runId]);
 
   return { messages, connected };
