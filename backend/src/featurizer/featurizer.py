@@ -28,3 +28,13 @@ class TimeSeriesFeaturizer:
             for name, series in series_dict.items()
         }
         return pd.DataFrame(aligned, index=daily_index)
+
+    def _rolling_features(self, series: pd.Series, name: str) -> pd.DataFrame:
+        frames: dict[str, pd.Series] = {}
+        for w in self.windows:
+            rolling = series.rolling(w, min_periods=w)
+            frames[f"{name}_mean_{w}d"] = rolling.mean()
+            frames[f"{name}_std_{w}d"] = rolling.std()
+            frames[f"{name}_min_{w}d"] = rolling.min()
+            frames[f"{name}_max_{w}d"] = rolling.max()
+        return pd.DataFrame(frames, index=series.index)

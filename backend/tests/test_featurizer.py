@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.featurizer.featurizer import TimeSeriesFeaturizer
 
@@ -49,3 +50,37 @@ def test_align_empty_dict_returns_empty_dataframe():
     result = f.align({})
     assert isinstance(result, pd.DataFrame)
     assert result.empty
+
+
+def test_rolling_features_column_names():
+    f = TimeSeriesFeaturizer(windows=[5, 20])
+    s = _daily_series("wti", n=100)
+    result = f._rolling_features(s, "wti")
+    expected_cols = [
+        "wti_mean_5d",
+        "wti_std_5d",
+        "wti_min_5d",
+        "wti_max_5d",
+        "wti_mean_20d",
+        "wti_std_20d",
+        "wti_min_20d",
+        "wti_max_20d",
+    ]
+    assert sorted(result.columns.tolist()) == sorted(expected_cols)
+
+
+def test_rolling_features_warmup_is_nan():
+    f = TimeSeriesFeaturizer(windows=[20], lags=[])
+    s = _daily_series("wti", n=100)
+    result = f._rolling_features(s, "wti")
+    assert result["wti_mean_20d"].iloc[:19].isna().all()
+    assert result["wti_mean_20d"].iloc[19:].notna().all()
+
+
+def test_rolling_features_values_are_backward_looking():
+    f = TimeSeriesFeaturizer(windows=[3])
+    dates = pd.date_range("2020-01-01", periods=10, freq="D")
+    s = pd.Series([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0], index=dates, name="x")
+    result = f._rolling_features(s, "x")
+    assert result["x_mean_3d"].iloc[2] == pytest.approx(2.0)
+    assert result["x_mean_3d"].iloc[4] == pytest.approx(4.0)
