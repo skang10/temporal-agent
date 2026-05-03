@@ -9,6 +9,9 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    ignore:
+      # tabpfn-client caps scikit-learn at <=1.6.1 — revisit when tabpfn-client lifts the constraint
+      - dependency-name: "scikit-learn"
     groups:
       python-minor-patch:
         patterns:
