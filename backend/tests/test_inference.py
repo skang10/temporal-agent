@@ -5,7 +5,7 @@ import pandas as pd
 import pytest
 from sklearn.exceptions import NotFittedError
 
-from src.inference.classifier import OilRegimeClassifier
+from src.inference.classifier import DirectionClassifier, OilRegimeClassifier
 
 
 def _feature_df(n: int = 10) -> pd.DataFrame:
@@ -104,3 +104,57 @@ def test_regime_raises_not_fitted_on_predict_proba():
         clf = OilRegimeClassifier()
         with pytest.raises(NotFittedError):
             clf.predict_proba(_feature_df(3))
+
+
+DIR_CLASSES = ["down", "up"]
+DIR_PROBA = [
+    [0.3, 0.7],
+    [0.8, 0.2],
+    [0.45, 0.55],
+]
+
+
+def test_direction_predict_returns_series_with_correct_index():
+    X = _feature_df(3)
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(DIR_CLASSES, DIR_PROBA)
+        clf = DirectionClassifier()
+        clf.fit(X, pd.Series(["up", "down", "up"]))
+        result = clf.predict(X)
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "direction"
+    assert list(result.index) == list(X.index)
+
+
+def test_direction_predict_returns_up_or_down():
+    X = _feature_df(3)
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(DIR_CLASSES, DIR_PROBA)
+        clf = DirectionClassifier()
+        clf.fit(X, pd.Series(["up", "down", "up"]))
+        result = clf.predict(X)
+
+    assert set(result.unique()).issubset({"up", "down"})
+    assert result.iloc[0] == "up"
+    assert result.iloc[1] == "down"
+
+
+def test_direction_predict_proba_has_two_columns():
+    X = _feature_df(3)
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(DIR_CLASSES, DIR_PROBA)
+        clf = DirectionClassifier()
+        clf.fit(X, pd.Series(["up", "down", "up"]))
+        result = clf.predict_proba(X)
+
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.columns) == ["down", "up"]
+    assert list(result.index) == list(X.index)
+
+
+def test_direction_raises_not_fitted():
+    with patch("src.inference.classifier.TabPFNClassifier"):
+        clf = DirectionClassifier()
+        with pytest.raises(NotFittedError):
+            clf.predict(_feature_df(3))
