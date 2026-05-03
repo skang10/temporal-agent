@@ -117,3 +117,30 @@ def test_momentum_features_values():
     s = pd.Series(values, index=dates, name="x")
     result = f._momentum_features(s, "x")
     assert result["x_roc_5d"].iloc[5] == pytest.approx(0.10)
+
+
+def test_transform_output_has_no_nan():
+    f = TimeSeriesFeaturizer(windows=[5, 20], lags=[1, 5])
+    s1 = _daily_series("wti", n=200)
+    s2 = _weekly_series("inventory", n=80)
+    result = f.transform({"wti": s1, "inventory": s2})
+    assert isinstance(result, pd.DataFrame)
+    assert not result.isna().any().any(), "transform() output must have no NaN"
+
+
+def test_transform_includes_all_signal_features():
+    f = TimeSeriesFeaturizer(windows=[5], lags=[1])
+    s1 = _daily_series("wti", n=100)
+    s2 = _daily_series("gpr", n=100)
+    result = f.transform({"wti": s1, "gpr": s2})
+    cols = result.columns.tolist()
+    assert any("wti_mean_5d" in c for c in cols)
+    assert any("gpr_mean_5d" in c for c in cols)
+    assert any("wti_lag_1d" in c for c in cols)
+    assert any("wti_roc_5d" in c for c in cols)
+
+
+def test_transform_temporal_ordering_preserved():
+    f = TimeSeriesFeaturizer(windows=[5], lags=[1])
+    result = f.transform({"wti": _daily_series("wti", n=100)})
+    assert result.index.is_monotonic_increasing

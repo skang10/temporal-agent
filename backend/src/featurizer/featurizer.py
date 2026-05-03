@@ -50,3 +50,14 @@ class TimeSeriesFeaturizer:
             {f"{name}_roc_{w}d": series.pct_change(w) for w in self.windows},
             index=series.index,
         )
+
+    def transform(self, series_dict: dict[str, pd.Series]) -> pd.DataFrame:
+        """Full pipeline: align → compute features → drop NaN rows."""
+        aligned = self.align(series_dict)
+        feature_frames = []
+        for col in aligned.columns:
+            s = aligned[col]
+            feature_frames.append(self._rolling_features(s, col))
+            feature_frames.append(self._lag_features(s, col))
+            feature_frames.append(self._momentum_features(s, col))
+        return pd.concat(feature_frames, axis=1).dropna()
