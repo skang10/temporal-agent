@@ -38,3 +38,15 @@ class TimeSeriesFeaturizer:
             frames[f"{name}_min_{w}d"] = rolling.min()
             frames[f"{name}_max_{w}d"] = rolling.max()
         return pd.DataFrame(frames, index=series.index)
+
+    def _lag_features(self, series: pd.Series, name: str) -> pd.DataFrame:
+        return pd.DataFrame(
+            {f"{name}_lag_{lag}d": series.shift(lag) for lag in self.lags},
+            index=series.index,
+        )
+
+    def _momentum_features(self, series: pd.Series, name: str) -> pd.DataFrame:
+        return pd.DataFrame(
+            {f"{name}_roc_{w}d": series.pct_change(w) for w in self.windows},
+            index=series.index,
+        )

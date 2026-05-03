@@ -84,3 +84,36 @@ def test_rolling_features_values_are_backward_looking():
     result = f._rolling_features(s, "x")
     assert result["x_mean_3d"].iloc[2] == pytest.approx(2.0)
     assert result["x_mean_3d"].iloc[4] == pytest.approx(4.0)
+
+
+def test_lag_features_shift_by_correct_amount():
+    f = TimeSeriesFeaturizer(lags=[1, 3])
+    dates = pd.date_range("2020-01-01", periods=10, freq="D")
+    s = pd.Series(range(10), index=dates, dtype=float, name="x")
+    result = f._lag_features(s, "x")
+    assert result["x_lag_1d"].iloc[3] == pytest.approx(2.0)
+    assert result["x_lag_3d"].iloc[5] == pytest.approx(2.0)
+
+
+def test_lag_features_first_rows_are_nan():
+    f = TimeSeriesFeaturizer(lags=[5])
+    s = _daily_series("x", n=20)
+    result = f._lag_features(s, "x")
+    assert result["x_lag_5d"].iloc[:5].isna().all()
+    assert result["x_lag_5d"].iloc[5:].notna().all()
+
+
+def test_momentum_features_column_names():
+    f = TimeSeriesFeaturizer(windows=[5, 20])
+    s = _daily_series("wti", n=100)
+    result = f._momentum_features(s, "wti")
+    assert sorted(result.columns.tolist()) == ["wti_roc_20d", "wti_roc_5d"]
+
+
+def test_momentum_features_values():
+    f = TimeSeriesFeaturizer(windows=[5])
+    dates = pd.date_range("2020-01-01", periods=10, freq="D")
+    values = [100.0, 101.0, 102.0, 103.0, 104.0, 110.0, 111.0, 112.0, 113.0, 114.0]
+    s = pd.Series(values, index=dates, name="x")
+    result = f._momentum_features(s, "x")
+    assert result["x_roc_5d"].iloc[5] == pytest.approx(0.10)
