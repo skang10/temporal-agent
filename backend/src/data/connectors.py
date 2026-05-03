@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 import pandas as pd
 import yfinance as yf
@@ -24,7 +26,7 @@ def fetch_fred_series(series_id: str, start: str, end: str, api_key: str) -> pd.
     return series
 
 
-def _eia_get(start: str, end: str, api_key: str) -> list[dict]:
+def _eia_get(start: str, end: str, api_key: str) -> list[dict[str, Any]]:
     """Isolated HTTP call — kept separate so tests can mock it cleanly."""
     resp = httpx.get(
         "https://api.eia.gov/v2/petroleum/stoc/wstk/data/",
