@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pandas as pd
 import pytest
 
-from src.data.connectors import fetch_price_series
+from src.data.connectors import fetch_fred_series, fetch_price_series
 
 
 def _make_yf_result(n: int = 5) -> pd.DataFrame:
@@ -29,3 +29,18 @@ def test_fetch_price_series_raises_on_empty():
         mock_dl.return_value = pd.DataFrame()
         with pytest.raises(ValueError, match="No data returned"):
             fetch_price_series("FAKE", "2024-01-01", "2024-01-05")
+
+
+def test_fetch_fred_series_returns_named_series():
+    with patch("src.data.connectors.Fred") as MockFred:
+        instance = MockFred.return_value
+        dates = pd.date_range("2024-01-01", periods=4, freq="ME")
+        instance.get_series.return_value = pd.Series(
+            [52.1, 51.8, 53.0, 52.5], index=dates, name="ISM/MAN_PMI"
+        )
+        result = fetch_fred_series("ISM/MAN_PMI", "2024-01-01", "2024-04-30", api_key="test")
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "ISM/MAN_PMI"
+    assert result.index.name == "date"
+    MockFred.assert_called_once_with(api_key="test")
