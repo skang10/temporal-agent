@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     anthropic_api_key: str = ""
     fred_api_key: str = ""
+    eia_api_key: str = ""
 
     sentry_dsn: str = ""
 
