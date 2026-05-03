@@ -44,3 +44,37 @@ def test_fetch_fred_series_returns_named_series():
     assert result.name == "ISM/MAN_PMI"
     assert result.index.name == "date"
     MockFred.assert_called_once_with(api_key="test")
+
+
+def test_fetch_eia_inventory_returns_weekly_change():
+    from src.data.connectors import fetch_eia_inventory
+
+    fake_rows = [
+        {"period": "2024-01-05", "value": "450000"},
+        {"period": "2024-01-12", "value": "448000"},
+        {"period": "2024-01-19", "value": "452000"},
+    ]
+    with patch("src.data.connectors._eia_get") as mock_get:
+        mock_get.return_value = fake_rows
+        result = fetch_eia_inventory("2024-01-01", "2024-01-31", api_key="test")
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "eia_inventory_change"
+    assert len(result) == 2
+    assert result.iloc[0] == pytest.approx(-2000.0)
+    assert result.index.name == "date"
+
+
+def test_fetch_eia_inventory_raises_on_http_error():
+    import httpx
+
+    from src.data.connectors import fetch_eia_inventory
+
+    with patch("src.data.connectors._eia_get") as mock_get:
+        from unittest.mock import MagicMock
+
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "404", request=MagicMock(), response=MagicMock(status_code=404)
+        )
+        with pytest.raises(httpx.HTTPStatusError):
+            fetch_eia_inventory("2024-01-01", "2024-01-31", api_key="bad")
