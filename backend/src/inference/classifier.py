@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import tabpfn_client
 from sklearn.exceptions import NotFittedError
-from tabpfn import TabPFNClassifier
+from tabpfn_client import TabPFNClassifier
+
+from src.config import settings
 
 
 class OilRegimeClassifier:
@@ -15,7 +18,7 @@ class OilRegimeClassifier:
         n_estimators: number of TabPFN ensemble members (more = smoother probabilities)
 
     Note:
-        Requires TABPFN_TOKEN env var set to download model weights on first fit().
+        Requires TABPFN_TOKEN env var set for API authentication.
         Register and accept license at https://ux.priorlabs.ai
 
     Example:
@@ -28,6 +31,8 @@ class OilRegimeClassifier:
     """
 
     def __init__(self, n_estimators: int = 8) -> None:
+        if settings.tabpfn_token:
+            tabpfn_client.set_access_token(settings.tabpfn_token)
         self._clf = TabPFNClassifier(n_estimators=n_estimators)
         self._fitted = False
 
@@ -76,7 +81,7 @@ class DirectionClassifier:
         n_estimators: number of TabPFN ensemble members
 
     Note:
-        Requires TABPFN_TOKEN env var set to download model weights on first fit().
+        Requires TABPFN_TOKEN env var set for API authentication.
 
     Example:
         >>> clf = DirectionClassifier()
@@ -88,6 +93,8 @@ class DirectionClassifier:
     """
 
     def __init__(self, n_estimators: int = 8) -> None:
+        if settings.tabpfn_token:
+            tabpfn_client.set_access_token(settings.tabpfn_token)
         self._clf = TabPFNClassifier(n_estimators=n_estimators)
         self._fitted = False
 
