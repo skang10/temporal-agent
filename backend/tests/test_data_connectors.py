@@ -1,4 +1,4 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
@@ -71,8 +71,6 @@ def test_fetch_eia_inventory_raises_on_http_error():
     from src.data.connectors import fetch_eia_inventory
 
     with patch("src.data.connectors._eia_get") as mock_get:
-        from unittest.mock import MagicMock
-
         mock_get.side_effect = httpx.HTTPStatusError(
             "404", request=MagicMock(), response=MagicMock(status_code=404)
         )
