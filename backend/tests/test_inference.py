@@ -158,3 +158,50 @@ def test_direction_raises_not_fitted():
         clf = DirectionClassifier()
         with pytest.raises(NotFittedError):
             clf.predict(_feature_df(3))
+
+
+def test_uncertainty_high_for_uniform_regime_proba():
+    """Uniform distribution across 4 classes → higher entropy than confident prediction."""
+    X = _feature_df(1)
+    uniform_proba = [[0.25, 0.25, 0.25, 0.25]]
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(REGIME_CLASSES, uniform_proba)
+        clf = OilRegimeClassifier()
+        clf.fit(X, _regime_labels(1))
+        high = clf.uncertainty(X)
+
+    confident_proba = [[0.97, 0.01, 0.01, 0.01]]
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(REGIME_CLASSES, confident_proba)
+        clf2 = OilRegimeClassifier()
+        clf2.fit(X, _regime_labels(1))
+        low = clf2.uncertainty(X)
+
+    assert high.iloc[0] > low.iloc[0]
+
+
+def test_uncertainty_returns_series_with_correct_index():
+    X = _feature_df(3)
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(REGIME_CLASSES, REGIME_PROBA)
+        clf = OilRegimeClassifier()
+        clf.fit(X, _regime_labels(3))
+        result = clf.uncertainty(X)
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "uncertainty"
+    assert list(result.index) == list(X.index)
+    assert (result >= 0).all()
+
+
+def test_uncertainty_direction_classifier():
+    X = _feature_df(3)
+    with patch("src.inference.classifier.TabPFNClassifier") as MockCLF:
+        MockCLF.return_value = _mock_clf(DIR_CLASSES, DIR_PROBA)
+        clf = DirectionClassifier()
+        clf.fit(X, pd.Series(["up", "down", "up"]))
+        result = clf.uncertainty(X)
+
+    assert isinstance(result, pd.Series)
+    assert result.name == "uncertainty"
+    assert (result >= 0).all()
