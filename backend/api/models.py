@@ -1,16 +1,11 @@
-from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel
 
-
-class RunStatus(StrEnum):
-    PENDING = "pending"
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
+from src.db.models import RunStatus
 
 
 class RunResult(BaseModel):
     run_id: str
     status: RunStatus
-    result: dict | None = None
+    result: dict[str, Any] | None = None
