@@ -7,11 +7,12 @@ Usage:
 
 Requires in .env:
     FRED_API_KEY   (for macro data)
-    TABPFN_TOKEN   (for TabPFN model weights — register at https://ux.priorlabs.ai)
+    TABPFN_TOKEN   (for TabPFN API — register at https://ux.priorlabs.ai)
     EIA_API_KEY    (optional, for inventory data)
 
-Labels are generated from WTI price heuristics so the demo runs without hand-labelled
-ground truth. The split is train = first 80 %, test = last 20 %.
+Regime labels are assigned from hand-labeled historical periods first, then fall back to
+WTI rolling-return heuristics for dates not covered. The split is train = first 80 %,
+test = last 20 %.
 """
 
 import argparse
@@ -23,24 +24,42 @@ from src.data.connectors import fetch_eia_inventory, fetch_fred_series, fetch_pr
 from src.featurizer import TimeSeriesFeaturizer
 from src.inference import DirectionClassifier, OilRegimeClassifier
 
+# Hand-labeled historical regime periods (inclusive on both ends).
+# These override the heuristic labels for dates that fall within a known period.
+# Sources: EIA, IEA historical reports, Baker Hughes rig count data.
+_KNOWN_REGIMES: list[tuple[str, str, str]] = [
+    ("2014-07-01", "2016-12-31", "bust"),  # shale glut + OPEC no-cut decision
+    ("2020-02-01", "2020-10-31", "bust"),  # COVID demand collapse
+    ("2021-01-01", "2022-06-30", "bull_supercycle"),  # post-COVID demand rebound + war spike
+    ("2022-02-01", "2022-04-30", "geopolitical_spike"),  # Russia invasion of Ukraine
+    ("2023-10-01", "2023-12-31", "geopolitical_spike"),  # Middle East escalation
+]
+
 
 def _make_regime_labels(wti: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
-    """Assign a regime label to each date based on WTI rolling-return heuristics.
+    """Assign a regime label to each date.
 
-    Regimes (priority order):
-        geopolitical_spike  — 5-day return > +8 %
-        bull_supercycle     — 60-day return > +20 %
-        bust                — 60-day return < -20 %
-        range_bound         — everything else
+    Priority order:
+        1. Hand-labeled periods (_KNOWN_REGIMES) — historically verified
+        2. geopolitical_spike  — 5-day WTI return > +8 %
+        3. bull_supercycle     — 60-day WTI return > +15 %
+        4. bust                — 60-day WTI return < -15 %
+        5. range_bound         — everything else
     """
     wti_daily = wti.reindex(index, method="ffill")
     ret5 = wti_daily.pct_change(5)
     ret60 = wti_daily.pct_change(60)
 
     labels = pd.Series("range_bound", index=index, name="regime")
-    labels[ret60 > 0.20] = "bull_supercycle"
-    labels[ret60 < -0.20] = "bust"
+    labels[ret60 > 0.15] = "bull_supercycle"
+    labels[ret60 < -0.15] = "bust"
     labels[ret5 > 0.08] = "geopolitical_spike"
+
+    # Hand-labeled periods take priority over heuristics
+    for start, end, regime in _KNOWN_REGIMES:
+        mask = (index >= start) & (index <= end)
+        labels[mask] = regime
+
     return labels
 
 
@@ -60,11 +79,11 @@ def _make_direction_labels(wti: pd.Series, index: pd.DatetimeIndex, horizon: int
 def _sample_prediction_dates(
     regime_index: pd.DatetimeIndex, direction_index: pd.DatetimeIndex, n: int = 10
 ) -> pd.DatetimeIndex:
-    """Pick display dates that include direction predictions when available."""
+    """Pick the last n dates that have both regime and direction predictions."""
     shared_index = regime_index.intersection(direction_index)
-    if len(shared_index) > 0:
+    if len(shared_index) >= n:
         return shared_index[-n:]
-    return regime_index[-n:]
+    return shared_index
 
 
 def main() -> None:
