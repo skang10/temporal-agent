@@ -53,6 +53,8 @@ make test           # Run all tests
 make lint           # Ruff + mypy + ESLint
 ```
 
+To inspect the database, connect [TablePlus](https://tableplus.com) (or any PostgreSQL client) to `localhost:5432`, user `temporal`, password `temporal`, database `temporal_agent`.
+
 ## Project structure
 
 ```
