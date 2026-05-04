@@ -16,10 +16,10 @@ class ToolRegistry:
     def __init__(self) -> None:
         self._tools: dict[str, _ToolEntry] = {}
 
-    def tool(self, parameters: dict[str, Any]) -> Callable:
+    def tool(self, parameters: dict[str, Any]) -> Callable[..., Any]:
         """Decorator that registers a function in this registry."""
 
-        def decorator(fn: Callable) -> Callable:
+        def decorator(fn: Callable[..., Any]) -> Callable[..., Any]:
             self._tools[fn.__name__] = _ToolEntry(
                 fn=fn,
                 description=(fn.__doc__ or "").strip().splitlines()[0],
@@ -29,7 +29,7 @@ class ToolRegistry:
 
         return decorator
 
-    def register(self, fn: Callable, parameters: dict[str, Any]) -> None:
+    def register(self, fn: Callable[..., Any], parameters: dict[str, Any]) -> None:
         self._tools[fn.__name__] = _ToolEntry(
             fn=fn,
             description=(fn.__doc__ or "").strip().splitlines()[0],
