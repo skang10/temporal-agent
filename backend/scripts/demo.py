@@ -83,7 +83,9 @@ def _sample_prediction_dates(
     shared_index = regime_index.intersection(direction_index)
     if len(shared_index) >= n:
         return shared_index[-n:]
-    return shared_index
+    if len(shared_index) > 0:
+        return shared_index
+    return regime_index[-n:]
 
 
 def main() -> None:
