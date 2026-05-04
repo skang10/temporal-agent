@@ -48,9 +48,9 @@ Most real-world prediction problems have both a temporal dimension (things chang
 |---|---|---|
 | Session 1 | Data connectors (yfinance, FRED, EIA) + `TimeSeriesFeaturizer` | ✅ Done — PR #43 |
 | Session 2 | `OilRegimeClassifier` + `DirectionClassifier` (tabpfn-client) | ✅ Done — PR #45 |
-| Session 3 | `src/db/` — SQLModel run/history models + Alembic migration | Pending |
-| Session 4 | `src/agent/` — tool definitions + ReAct loop (Anthropic SDK) | Pending |
-| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub | Pending |
+| Session 3 | `src/db/` — SQLModel run/history models + Alembic migration | ✅ Done — PR #51 |
+| Session 4 | `src/agent/` — tool registry + 4 core tools + ReAct loop (OpenAI SDK) | In progress |
+| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub + deferred tools (`detect_drift`, `backtest`, `evaluate_features`, `fetch_geopolitical_risk`) | Pending |
 | Session 6 | Frontend — RegimeDashboard + AgentStream components | Pending |
 
 See `docs/BACKLOG.md` for known issues and deferred improvements.
@@ -77,13 +77,15 @@ Wraps `TabPFNClassifier` and `TabPFNRegressor` from the TabPFN library.
 ### 3. LLM Agent
 Orchestrates the full pipeline with tool use.
 
-**Tools:**
-- `fetch_data(source, series, date_range)` — pulls from EIA, FRED, yfinance
-- `engineer_features(data, window_sizes, feature_types)` — calls TimeSeriesFeaturizer
-- `run_tabpfn(X_train, y_train, X_test, task_type)` — runs inference
+**Tools (Session 4 — core):**
+- `fetch_data(tickers, fred_series, start, end)` — pulls from yfinance + FRED
+- `engineer_features(windows, lags)` — calls TimeSeriesFeaturizer
+- `run_tabpfn(task, horizon)` — regime classification or direction prediction
+- `explain_prediction(regime, direction, confidence, key_features)` — natural language explanation
+
+**Tools (Session 5 — deferred):**
 - `evaluate_features(feature_importances)` — SHAP-based analysis via tabpfn-extensions
 - `detect_drift(recent_data, historical_data)` — flags distribution shift
-- `explain_prediction(prediction, features, context)` — natural language explanation
 - `backtest(strategy, date_range)` — walk-forward evaluation
 - `fetch_geopolitical_risk(date_range)` — pulls GPR index from Fed
 
@@ -253,7 +255,7 @@ WebSocket streaming is important here — the agent's ReAct loop is iterative an
 
 | Layer | Tool |
 |---|---|
-| Agent framework | Claude API with tool use, or LangGraph for multi-agent |
+| Agent framework | OpenAI SDK (gpt-5.4 / gpt-5.4-mini) with tool use |
 | TabPFN | `tabpfn-client` (cloud API) + `tabpfn-extensions` (SHAP) |
 | Time series features | `tsfresh` or manual + `pandas` |
 | Data | `fredapi`, `yfinance`, EIA API |
