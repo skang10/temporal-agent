@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.2.0...temporal-agent-backend-v0.3.0) (2026-05-04)
+
+
+### Features
+
+* DB models and session management ([#51](https://github.com/skang10/temporal-agent/issues/51)) ([c655a43](https://github.com/skang10/temporal-agent/commit/c655a43b81537236c75bd2153f2e27acdc96e40b))
+* TabPFN inference wrappers (OilRegimeClassifier + DirectionClassifier) ([#45](https://github.com/skang10/temporal-agent/issues/45)) ([385ae89](https://github.com/skang10/temporal-agent/commit/385ae89a5e8976bf997bdb4cef0c950da7f1f3d8))
+
 ## [0.2.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.1.1...temporal-agent-backend-v0.2.0) (2026-05-03)
 
 
