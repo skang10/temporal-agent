@@ -238,3 +238,43 @@ def test_explain_prediction_returns_structured_dict(ctx):
     assert result["direction"] == "down"
     assert result["confidence"] == 0.82
     assert result["key_features"] == ["wti_ret_60", "eia_inventory_slope"]
+
+
+# ── Smoke test (requires OPENAI_API_KEY) ──────────────────────────────────────
+
+from src.agent.loop import run_agent_loop  # noqa: E402
+from src.config import settings as _settings  # noqa: E402
+
+
+@pytest.mark.skipif(
+    not _settings.openai_api_key,
+    reason="OPENAI_API_KEY not set — skipping live agent loop smoke test",
+)
+async def test_full_loop_smoke():
+    """Runs the real agent loop end-to-end against the OpenAI API."""
+    import uuid
+    from unittest.mock import AsyncMock, MagicMock
+
+    run_id = uuid.uuid4()
+    mock_run = MagicMock()
+    mock_run.id = run_id
+
+    with (
+        patch("src.agent.loop.AsyncSession") as MockSession,
+        patch("src.agent.loop.aioredis.from_url") as mock_redis_factory,
+    ):
+        mock_session_ctx = AsyncMock()
+        mock_session_ctx.get.return_value = mock_run
+        MockSession.return_value.__aenter__.return_value = mock_session_ctx
+
+        mock_redis = AsyncMock()
+        mock_redis_factory.return_value = mock_redis
+
+        await run_agent_loop(
+            run_id,
+            "2023-01-01",
+            "2023-06-30",
+            ["regime_classification", "price_direction"],
+        )
+
+    assert mock_run.status is not None
