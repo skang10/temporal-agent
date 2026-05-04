@@ -57,6 +57,16 @@ def _make_direction_labels(wti: pd.Series, index: pd.DatetimeIndex, horizon: int
     return labels
 
 
+def _sample_prediction_dates(
+    regime_index: pd.DatetimeIndex, direction_index: pd.DatetimeIndex, n: int = 10
+) -> pd.DatetimeIndex:
+    """Pick display dates that include direction predictions when available."""
+    shared_index = regime_index.intersection(direction_index)
+    if len(shared_index) > 0:
+        return shared_index[-n:]
+    return regime_index[-n:]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="TemporalAgent pipeline demo")
     parser.add_argument("--start", default="2022-01-01", help="Start date (YYYY-MM-DD)")
@@ -148,7 +158,7 @@ def main() -> None:
     print(f"{'Date':<14} {'Regime':<22} {'Conf':>6}  {'Direction':>10} {'Conf':>6}  {'Entropy':>7}")
     print(f"{'─' * 65}")
 
-    sample_dates = X_test.index[-10:]
+    sample_dates = _sample_prediction_dates(regime_pred.index, dir_pred.index)
     for date in sample_dates:
         regime = regime_pred[date]
         r_conf = regime_proba.loc[date, regime]
