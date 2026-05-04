@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
 
     anthropic_api_key: str = ""
+    openai_api_key: str = ""
+    agent_model: str = "gpt-5.4"
+    agent_model_fast: str = "gpt-5.4-mini"
+
     fred_api_key: str = ""
     eia_api_key: str = ""
     tabpfn_token: str = ""
