@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     fred_api_key: str = ""
     eia_api_key: str = ""
+    tabpfn_token: str = ""
 
     sentry_dsn: str = ""
 

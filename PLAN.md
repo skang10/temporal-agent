@@ -42,6 +42,21 @@ Most real-world prediction problems have both a temporal dimension (things chang
 
 ---
 
+## Implementation Status
+
+| Session | Focus | Status |
+|---|---|---|
+| Session 1 | Data connectors (yfinance, FRED, EIA) + `TimeSeriesFeaturizer` | ✅ Done — PR #43 |
+| Session 2 | `OilRegimeClassifier` + `DirectionClassifier` (tabpfn-client) | ✅ Done — PR #45 |
+| Session 3 | `src/db/` — SQLModel run/history models + Alembic migration | Pending |
+| Session 4 | `src/agent/` — tool definitions + ReAct loop (Anthropic SDK) | Pending |
+| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub | Pending |
+| Session 6 | Frontend — RegimeDashboard + AgentStream components | Pending |
+
+See `docs/BACKLOG.md` for known issues and deferred improvements.
+
+---
+
 ## Components
 
 ### 1. `TimeSeriesFeaturizer`
@@ -183,44 +198,32 @@ for iteration in range(max_iterations):
 
 ## Repo Structure
 
-Two separate repositories:
-
-```
-temporal-agent/        # Python backend
-temporal-agent-ui/     # Next.js frontend
-```
-
-### `temporal-agent` (backend)
-FastAPI server exposing REST and WebSocket endpoints. All agent logic, TabPFN inference, and data pipelines live here.
+Single monorepo:
 
 ```
 temporal-agent/
-├── src/
-│   ├── agent/         # LLM agent, tools, ReAct loop
-│   ├── featurizer/    # TimeSeriesFeaturizer
-│   ├── inference/     # TabPFN wrappers
-│   ├── data/          # FRED, yfinance connectors
-│   └── eval/          # Walk-forward backtest
-├── api/               # FastAPI routes + WebSocket handlers
-├── tests/
-└── pyproject.toml
-```
-
-### `temporal-agent-ui` (frontend)
-Next.js app. Consumes the backend API and streams agent reasoning steps in real time via WebSocket.
-
-```
-temporal-agent-ui/
-├── app/               # Next.js app router pages
-├── components/
-│   ├── RegimeDashboard/       # Oil market regime display
-│   ├── PriceDirectionCard/    # WTI/Brent prediction
-│   ├── GeopoliticalRiskChart/ # GPR index overlay
-│   ├── AgentStream/           # Live agent thought stream
-│   ├── FeatureImportance/     # SHAP chart
-│   └── BacktestChart/         # Walk-forward performance
-├── lib/               # API client, WebSocket hook
-└── package.json
+├── backend/           # Python — FastAPI, agent logic, TabPFN inference, data pipelines
+│   ├── src/
+│   │   ├── agent/         # LLM agent, tools, ReAct loop
+│   │   ├── featurizer/    # TimeSeriesFeaturizer
+│   │   ├── inference/     # TabPFN wrappers (OilRegimeClassifier, DirectionClassifier)
+│   │   ├── data/          # FRED, yfinance, EIA connectors
+│   │   └── eval/          # Walk-forward backtest
+│   ├── api/               # FastAPI routes + WebSocket handlers
+│   ├── scripts/           # demo.py — end-to-end pipeline demo
+│   ├── tests/
+│   └── pyproject.toml
+└── frontend/          # Next.js — dashboard UI
+    ├── app/               # Next.js app router pages
+    ├── components/
+    │   ├── RegimeDashboard/       # Oil market regime display
+    │   ├── PriceDirectionCard/    # WTI/Brent prediction
+    │   ├── GeopoliticalRiskChart/ # GPR index overlay
+    │   ├── AgentStream/           # Live agent thought stream
+    │   ├── FeatureImportance/     # SHAP chart
+    │   └── BacktestChart/         # Walk-forward performance
+    ├── lib/               # API client, WebSocket hook
+    └── package.json
 ```
 
 ### API Contract (backend → frontend)
@@ -251,7 +254,7 @@ WebSocket streaming is important here — the agent's ReAct loop is iterative an
 | Layer | Tool |
 |---|---|
 | Agent framework | Claude API with tool use, or LangGraph for multi-agent |
-| TabPFN | `tabpfn` + `tabpfn-extensions` (SHAP) |
+| TabPFN | `tabpfn-client` (cloud API) + `tabpfn-extensions` (SHAP) |
 | Time series features | `tsfresh` or manual + `pandas` |
 | Data | `fredapi`, `yfinance`, EIA API |
 | Eval | Custom walk-forward backtest + `scikit-learn` |

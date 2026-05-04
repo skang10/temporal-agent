@@ -1,13 +1,17 @@
 """
-End-to-end demo: fetch market data → featurize → print feature matrix summary.
+End-to-end demo: fetch market data → featurize → classify regime + direction with TabPFN.
 
 Usage:
     cd backend && uv run python scripts/demo.py
-    cd backend && uv run python scripts/demo.py --start 2021-01-01 --end 2023-12-31
+    cd backend && uv run python scripts/demo.py --start 2021-01-01 --end 2024-12-31
 
 Requires in .env:
-    FRED_API_KEY  (for macro data)
-    EIA_API_KEY   (optional, for inventory data)
+    FRED_API_KEY   (for macro data)
+    TABPFN_TOKEN   (for TabPFN model weights — register at https://ux.priorlabs.ai)
+    EIA_API_KEY    (optional, for inventory data)
+
+Labels are generated from WTI price heuristics so the demo runs without hand-labelled
+ground truth. The split is train = first 80 %, test = last 20 %.
 """
 
 import argparse
@@ -17,6 +21,50 @@ import pandas as pd
 from src.config import settings
 from src.data.connectors import fetch_eia_inventory, fetch_fred_series, fetch_price_series
 from src.featurizer import TimeSeriesFeaturizer
+from src.inference import DirectionClassifier, OilRegimeClassifier
+
+
+def _make_regime_labels(wti: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
+    """Assign a regime label to each date based on WTI rolling-return heuristics.
+
+    Regimes (priority order):
+        geopolitical_spike  — 5-day return > +8 %
+        bull_supercycle     — 60-day return > +20 %
+        bust                — 60-day return < -20 %
+        range_bound         — everything else
+    """
+    wti_daily = wti.reindex(index, method="ffill")
+    ret5 = wti_daily.pct_change(5)
+    ret60 = wti_daily.pct_change(60)
+
+    labels = pd.Series("range_bound", index=index, name="regime")
+    labels[ret60 > 0.20] = "bull_supercycle"
+    labels[ret60 < -0.20] = "bust"
+    labels[ret5 > 0.08] = "geopolitical_spike"
+    return labels
+
+
+def _make_direction_labels(wti: pd.Series, index: pd.DatetimeIndex, horizon: int = 20) -> pd.Series:
+    """Label each date 'up' or 'down' based on WTI return over the next `horizon` trading days.
+
+    The last `horizon` rows have no forward data and are dropped from the returned series.
+    """
+    wti_daily = wti.reindex(index, method="ffill")
+    forward_ret = wti_daily.shift(-horizon) / wti_daily - 1
+    forward_ret = forward_ret.dropna()
+    labels = forward_ret.map(lambda r: "up" if r > 0 else "down")
+    labels.name = "direction"
+    return labels
+
+
+def _sample_prediction_dates(
+    regime_index: pd.DatetimeIndex, direction_index: pd.DatetimeIndex, n: int = 10
+) -> pd.DatetimeIndex:
+    """Pick display dates that include direction predictions when available."""
+    shared_index = regime_index.intersection(direction_index)
+    if len(shared_index) > 0:
+        return shared_index[-n:]
+    return regime_index[-n:]
 
 
 def main() -> None:
@@ -57,16 +105,96 @@ def main() -> None:
     featurizer = TimeSeriesFeaturizer(windows=[5, 20, 60], lags=[1, 5, 20])
     features = featurizer.transform(signals)
 
-    print(f"\n{'─' * 45}")
     print(f"Feature matrix:  {features.shape[0]} rows × {features.shape[1]} columns")
     print(f"Date range:      {features.index[0].date()} → {features.index[-1].date()}")
-    print(f"Any NaN:         {features.isna().any().any()}")
-    print("\nSample columns:")
-    for col in list(features.columns)[:8]:
-        print(f"  {col}")
-    print(f"  ... ({features.shape[1] - 8} more)")
-    print(f"\n{'─' * 45}")
-    print("Pipeline OK — ready for TabPFN inference.\n")
+
+    # ── 5. Generate heuristic labels ─────────────────────
+    wti = signals["wti"]
+    regime_labels = _make_regime_labels(wti, features.index)
+    direction_labels = _make_direction_labels(wti, features.index, horizon=20)
+
+    # Align direction labels (drops last 20 rows that have no forward data)
+    common_idx = features.index.intersection(direction_labels.index)
+    features_dir = features.loc[common_idx]
+
+    # 80/20 train/test split (strict temporal — no shuffling)
+    split = int(len(features) * 0.8)
+    split_dir = int(len(features_dir) * 0.8)
+
+    X_train, X_test = features.iloc[:split], features.iloc[split:]
+    y_regime_train = regime_labels.iloc[:split]
+
+    X_train_dir, X_test_dir = features_dir.iloc[:split_dir], features_dir.iloc[split_dir:]
+    y_dir_train = direction_labels.iloc[:split_dir]
+
+    print(f"\nTrain rows: {len(X_train)}  |  Test rows: {len(X_test)}")
+    print(f"Regime label distribution (train):\n  {y_regime_train.value_counts().to_dict()}")
+
+    # ── 6. TabPFN inference ───────────────────────────────
+    if not settings.tabpfn_token:
+        print("\nSkipping TabPFN inference (TABPFN_TOKEN not set).")
+        print("Pipeline OK — featurizer output ready for inference.\n")
+        return
+
+    print("\nFitting OilRegimeClassifier...")
+    regime_clf = OilRegimeClassifier(n_estimators=8)
+    regime_clf.fit(X_train, y_regime_train)
+
+    print("Fitting DirectionClassifier...")
+    dir_clf = DirectionClassifier(n_estimators=8)
+    dir_clf.fit(X_train_dir, y_dir_train)
+
+    # Predict on test set
+    regime_pred = regime_clf.predict(X_test)
+    regime_proba = regime_clf.predict_proba(X_test)
+    regime_uncertainty = regime_clf.uncertainty(X_test)
+
+    dir_pred = dir_clf.predict(X_test_dir)
+    dir_proba = dir_clf.predict_proba(X_test_dir)
+    dir_uncertainty = dir_clf.uncertainty(X_test_dir)
+
+    # ── 7. Print results ──────────────────────────────────
+    print(f"\n{'─' * 65}")
+    print(f"{'Date':<14} {'Regime':<22} {'Conf':>6}  {'Direction':>10} {'Conf':>6}  {'Entropy':>7}")
+    print(f"{'─' * 65}")
+
+    sample_dates = _sample_prediction_dates(regime_pred.index, dir_pred.index)
+    for date in sample_dates:
+        regime = regime_pred[date]
+        r_conf = regime_proba.loc[date, regime]
+
+        if date in dir_pred.index:
+            direction = dir_pred[date]
+            d_conf = dir_proba.loc[date, direction]
+            d_entropy = dir_uncertainty[date]
+            dir_str = f"{direction:>10} {d_conf:>6.1%}  {d_entropy:>7.3f}"
+        else:
+            dir_str = f"{'—':>10} {'—':>6}   {'—':>7}"
+
+        print(f"{str(date.date()):<14} {regime:<22} {r_conf:>6.1%}  {dir_str}")
+
+    print(f"{'─' * 65}")
+
+    # Summary stats over full test set
+    regime_counts = regime_pred.value_counts()
+    up_pct = (dir_pred == "up").mean() * 100
+    mean_r_entropy = regime_uncertainty.mean()
+    mean_d_entropy = dir_uncertainty.mean()
+
+    print("\nTest-set summary")
+    print(f"  Regime distribution: {regime_counts.to_dict()}")
+    print(f"  Direction → up: {up_pct:.1f}%  down: {100 - up_pct:.1f}%")
+    print(f"  Mean regime entropy:    {mean_r_entropy:.3f}  (lower = more confident)")
+    print(f"  Mean direction entropy: {mean_d_entropy:.3f}  (lower = more confident)")
+
+    # Show most uncertain days
+    top_uncertain = regime_uncertainty.nlargest(3)
+    print("\n  Most uncertain regime days:")
+    for date, h in top_uncertain.items():
+        print(f"    {date.date()}  entropy={h:.3f}  predicted={regime_pred[date]}")
+
+    print(f"\n{'─' * 65}")
+    print("Pipeline OK.\n")
 
 
 if __name__ == "__main__":
