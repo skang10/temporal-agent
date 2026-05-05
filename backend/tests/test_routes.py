@@ -8,25 +8,9 @@ def test_analyze_invalid_date_type(client):
     assert res.status_code in (200, 422)  # FastAPI coerces ints to str; both outcomes are valid
 
 
-def test_analyze_valid_request_returns_not_implemented(client):
-    res = client.post(
-        "/api/analyze",
-        json={"date_range_start": "2020-01-01", "date_range_end": "2024-01-01"},
-    )
-    assert res.status_code == 501
-    assert res.json()["detail"] == "Analysis pipeline is not implemented yet."
-
-
-def test_get_run_not_implemented(client):
-    res = client.get("/api/runs/test-run-id")
-    assert res.status_code == 501
-    assert res.json()["detail"] == "Run storage is not implemented yet."
-
-
-def test_get_history_not_implemented(client):
-    res = client.get("/api/history")
-    assert res.status_code == 501
-    assert res.json()["detail"] == "Run history is not implemented yet."
+def test_get_run_invalid_uuid_returns_422(client):
+    res = client.get("/api/runs/not-a-uuid")
+    assert res.status_code == 422
 
 
 def test_derivatives_missing_required_fields(client):
