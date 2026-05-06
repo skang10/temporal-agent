@@ -54,31 +54,31 @@ async def run_agent_loop(
     HTTP request's session, which is closed once the response is sent.
     """
     redis_client: aioredis.Redis = aioredis.from_url(settings.redis_url)  # type: ignore[type-arg]
-    openai_client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
     channel = f"run:{run_id}"
 
-    async with AsyncSession(engine) as session:
-        run = await session.get(Run, run_id)
-        if run is None:
-            return
-        run.status = RunStatus.RUNNING
-        await session.commit()
-
-    context = AgentContext(
-        date_range_start=date_range_start,
-        date_range_end=date_range_end,
-    )
-
-    messages: list[dict] = [  # type: ignore[type-arg]
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": f"Analyze {date_range_start} to {date_range_end}. Tasks: {tasks}",
-        },
-    ]
-
-    last_text = ""
     try:
+        async with AsyncSession(engine) as session:
+            run = await session.get(Run, run_id)
+            if run is None:
+                return
+            run.status = RunStatus.RUNNING
+            await session.commit()
+
+        openai_client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+        context = AgentContext(
+            date_range_start=date_range_start,
+            date_range_end=date_range_end,
+        )
+
+        messages: list[dict] = [  # type: ignore[type-arg]
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"Analyze {date_range_start} to {date_range_end}. Tasks: {tasks}",
+            },
+        ]
+
+        last_text = ""
         for _ in range(MAX_ITERATIONS):
             response = await openai_client.chat.completions.create(
                 model=settings.agent_model,
@@ -132,6 +132,8 @@ async def run_agent_loop(
                     )
             else:
                 break
+        else:
+            raise RuntimeError(f"Agent loop exceeded max iterations ({MAX_ITERATIONS})")
 
         await _publish(redis_client, channel, {"type": "done", "summary": last_text})
 

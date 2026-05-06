@@ -201,20 +201,30 @@ def run_tabpfn(task: str, horizon: int = 20, context: AgentContext | None = None
     pred = dir_clf.predict(X_test)
     proba = dir_clf.predict_proba(X_test)
     uncertainty = dir_clf.uncertainty(X_test)
-    mean_conf = float(proba.max(axis=1).mean())
+    test_mean_conf = float(proba.max(axis=1).mean())
     mean_entropy = float(uncertainty.mean())
-    current = str(pred.iloc[-1])
+    latest_features = features.iloc[[-1]]
+    current_pred = dir_clf.predict(latest_features)
+    current_proba = dir_clf.predict_proba(latest_features)
+    current_uncertainty = dir_clf.uncertainty(latest_features)
+    current = str(current_pred.iloc[-1])
+    current_conf = float(current_proba.max(axis=1).iloc[-1])
+    current_entropy = float(current_uncertainty.iloc[-1])
+    prediction_date = str(latest_features.index[-1].date())
     distribution = pred.value_counts().to_dict()
     context.direction_result = {
         "direction": current,
-        "confidence": mean_conf,
-        "entropy": mean_entropy,
+        "confidence": current_conf,
+        "entropy": current_entropy,
+        "prediction_date": prediction_date,
         "distribution": {str(k): int(v) for k, v in distribution.items()},
     }
     return {
         "task": "direction",
         "current_prediction": current,
-        "mean_confidence": mean_conf,
+        "prediction_date": prediction_date,
+        "mean_confidence": current_conf,
+        "test_mean_confidence": test_mean_conf,
         "mean_entropy": mean_entropy,
         "test_size": len(X_test),
         "label_distribution": {str(k): int(v) for k, v in distribution.items()},

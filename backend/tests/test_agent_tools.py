@@ -207,6 +207,33 @@ def test_run_tabpfn_direction_returns_summary(ctx_with_features):
     assert ctx_with_features.direction_result is not None
 
 
+def test_run_tabpfn_direction_predicts_latest_feature_row(ctx_with_features):
+    labeled_idx = ctx_with_features.features.index[:-20]
+    latest_idx = ctx_with_features.features.index[-1:]
+
+    with patch("src.agent.tools.DirectionClassifier") as MockCls:
+        inst = MockCls.return_value
+        inst.predict.side_effect = [
+            pd.Series(["up"] * 40, index=labeled_idx[-40:], name="direction"),
+            pd.Series(["down"], index=latest_idx, name="direction"),
+        ]
+        inst.predict_proba.side_effect = [
+            pd.DataFrame({"up": [0.7] * 40, "down": [0.3] * 40}, index=labeled_idx[-40:]),
+            pd.DataFrame({"up": [0.2], "down": [0.8]}, index=latest_idx),
+        ]
+        inst.uncertainty.side_effect = [
+            pd.Series([0.6] * 40, index=labeled_idx[-40:], name="uncertainty"),
+            pd.Series([0.5], index=latest_idx, name="uncertainty"),
+        ]
+
+        result = run_tabpfn(task="direction", horizon=20, context=ctx_with_features)
+
+    latest_predict_frame = inst.predict.call_args_list[-1].args[0]
+    assert latest_predict_frame.index.tolist() == latest_idx.tolist()
+    assert result["current_prediction"] == "down"
+    assert ctx_with_features.direction_result["prediction_date"] == str(latest_idx[0].date())
+
+
 def test_run_tabpfn_raises_without_features(ctx):
     with pytest.raises(ValueError, match="engineer_features"):
         run_tabpfn(task="regime", horizon=20, context=ctx)
