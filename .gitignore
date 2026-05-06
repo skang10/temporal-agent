@@ -32,5 +32,10 @@ Thumbs.db
 .vscode/
 .idea/
 
+# Local agent skills/settings
+.agents/
+.claude/
+skills-lock.json
+
 # Git worktrees
 .worktrees/
