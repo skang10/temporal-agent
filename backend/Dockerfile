@@ -19,9 +19,11 @@ COPY alembic/ ./alembic/
 COPY alembic.ini ./
 
 # Run as non-root
-RUN useradd --no-create-home --shell /bin/false appuser
+RUN useradd --no-create-home --shell /bin/false appuser \
+    && chown -R appuser /app
+
 USER appuser
 
 EXPOSE 8000
 
-CMD ["uv", "run", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD [".venv/bin/uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
