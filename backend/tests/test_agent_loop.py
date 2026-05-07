@@ -36,6 +36,7 @@ class _SessionFactory:
 
 def _tool_call_response(name: str = "explain_prediction") -> SimpleNamespace:
     return SimpleNamespace(
+        usage=SimpleNamespace(prompt_tokens=100, completion_tokens=50),
         choices=[
             SimpleNamespace(
                 finish_reason="tool_calls",
@@ -59,7 +60,7 @@ def _tool_call_response(name: str = "explain_prediction") -> SimpleNamespace:
                     ],
                 ),
             )
-        ]
+        ],
     )
 
 
