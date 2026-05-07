@@ -185,3 +185,45 @@ def test_fetch_geopolitical_risk_writes_data_manifest(ctx):
     assert entry["provider"] == "matteoiacoviello.com"
     assert entry["start"] == ctx.date_range_start
     assert entry["end"] == ctx.date_range_end
+
+
+# ── backtest tool wrapper ──────────────────────────────────────────────────────
+
+from src.agent.tools import backtest  # noqa: E402
+
+
+def test_backtest_tool_stores_result_in_context(ctx):
+    n = 50
+    dates = pd.date_range("2022-01-01", periods=n, freq="B")
+    ctx.features = pd.DataFrame(np.random.randn(n, 3), index=dates, columns=["f1", "f2", "f3"])
+    ctx.signals["CL=F"] = pd.Series(np.linspace(70, 80, n), index=dates, name="CL=F")
+    ctx.signals["SPY"] = pd.Series(np.linspace(400, 450, n), index=dates, name="SPY")
+
+    fake_result = {
+        "regime_accuracy": 0.71,
+        "strategy_sharpe": 1.43,
+        "benchmark_sharpe": 0.89,
+        "n_windows": 5,
+        "date_range": ["2022-01-01", "2022-03-31"],
+    }
+
+    with patch("src.eval.backtest.walk_forward_backtest", return_value=fake_result):
+        result = backtest(horizon=20, step=20, context=ctx)
+
+    assert ctx.backtest_result == fake_result
+    assert result == fake_result
+
+
+def test_backtest_tool_raises_without_features(ctx):
+    with pytest.raises(ValueError, match="engineer_features"):
+        backtest(context=ctx)
+
+
+def test_backtest_tool_raises_without_spy(ctx):
+    n = 50
+    dates = pd.date_range("2022-01-01", periods=n, freq="B")
+    ctx.features = pd.DataFrame(np.random.randn(n, 2), index=dates, columns=["f1", "f2"])
+    ctx.signals["CL=F"] = pd.Series(np.linspace(70, 80, n), index=dates, name="CL=F")
+
+    with pytest.raises(ValueError, match="SPY"):
+        backtest(context=ctx)

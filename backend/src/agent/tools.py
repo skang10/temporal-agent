@@ -401,3 +401,45 @@ def fetch_geopolitical_risk(context: AgentContext) -> dict[str, Any]:
         "provider": "matteoiacoviello.com",
     }
     return {"fetched": {"GPR": len(series)}}
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {
+            "horizon": {
+                "type": "integer",
+                "description": "Forward-return horizon in trading days. Default 20.",
+                "default": 20,
+            },
+            "step": {
+                "type": "integer",
+                "description": "Walk-forward step size in days. Default 20.",
+                "default": 20,
+            },
+        },
+        "required": [],
+    }
+)
+def backtest(
+    horizon: int = 20, step: int = 20, context: AgentContext | None = None
+) -> dict[str, Any]:
+    """Walk-forward backtest: regime accuracy + direction strategy Sharpe vs SPY buy-and-hold."""
+    if context is None or context.features is None:
+        raise ValueError("No features in context. Call engineer_features first.")
+    if "CL=F" not in context.signals:
+        raise ValueError("WTI signal ('CL=F') not found. Call fetch_data first.")
+    if "SPY" not in context.signals:
+        raise ValueError("SPY signal not found. Call fetch_data with tickers=['CL=F', ..., 'SPY'].")
+
+    from src.eval.backtest import walk_forward_backtest as _wfb
+
+    result = _wfb(
+        features=context.features.dropna(),
+        wti=context.signals["CL=F"],
+        spy=context.signals["SPY"],
+        horizon=horizon,
+        step=step,
+    )
+    context.backtest_result = result
+    return result
