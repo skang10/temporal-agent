@@ -4,6 +4,10 @@ services:
     ports:
       - "8000:8000"
     env_file: .env
+    environment:
+      - HOME=/tmp
+      - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379
     depends_on:
       postgres:
         condition: service_healthy
@@ -11,7 +15,8 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uv run uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+      - backend_venv:/app/.venv
+    command: bash -c "uv sync --frozen --no-dev && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
@@ -42,7 +47,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -63,3 +68,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  backend_venv:

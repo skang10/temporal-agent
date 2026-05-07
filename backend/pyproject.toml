@@ -34,6 +34,7 @@ dependencies = [
     "fredapi>=0.5.2",
     # Agent
     "anthropic>=0.40.0",
+    "openai>=1.0.0",
     # Observability
     "structlog>=24.4.0",
     "sentry-sdk[fastapi]>=2.59.0",
@@ -75,4 +76,5 @@ include = ["src*", "api*"]
 [dependency-groups]
 dev = [
     "pre-commit>=4.6.0",
+    "types-redis>=4.6.0.20241004",
 ]

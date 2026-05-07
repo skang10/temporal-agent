@@ -7,6 +7,7 @@ from typing import Any
 
 from sqlalchemy import JSON as SAJson
 from sqlalchemy import Column
+from sqlalchemy import String as SAString
 from sqlmodel import Field, SQLModel
 
 
@@ -19,7 +20,7 @@ class RunStatus(StrEnum):
 
 class Run(SQLModel, table=True):
     id: uuid.UUID = Field(default_factory=uuid.uuid4, primary_key=True)
-    status: RunStatus = Field(default=RunStatus.PENDING)
+    status: RunStatus = Field(default=RunStatus.PENDING, sa_column=Column(SAString, nullable=False))
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC).replace(tzinfo=None))
     completed_at: datetime | None = Field(default=None)
     date_range_start: str
