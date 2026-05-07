@@ -29,6 +29,13 @@ class AgentContext:
     features: pd.DataFrame | None = None
     regime_result: dict[str, Any] | None = None
     direction_result: dict[str, Any] | None = None
+    backtest_result: dict[str, Any] | None = None
+    drift_result: dict[str, Any] | None = None
+    shap_result: dict[str, Any] | None = None
+    _regime_clf: Any | None = None
+    _regime_X_test: pd.DataFrame | None = None
+    _regime_y_test: pd.Series | None = None
+    data_manifest: dict[str, Any] = field(default_factory=dict)
 
 
 def _make_regime_labels(wti: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
@@ -81,6 +88,12 @@ def fetch_data(tickers: list[str], fred_series: list[str], context: AgentContext
         series = fetch_price_series(ticker, context.date_range_start, context.date_range_end)
         context.signals[ticker] = series
         fetched[ticker] = len(series)
+        context.data_manifest.setdefault("data_sources", {})[ticker] = {
+            "rows": len(series),
+            "start": context.date_range_start,
+            "end": context.date_range_end,
+            "provider": "yfinance",
+        }
 
     for series_id in fred_series:
         if not settings.fred_api_key:
@@ -94,6 +107,12 @@ def fetch_data(tickers: list[str], fred_series: list[str], context: AgentContext
         )
         context.signals[series_id] = series
         fetched[series_id] = len(series)
+        context.data_manifest.setdefault("data_sources", {})[series_id] = {
+            "rows": len(series),
+            "start": context.date_range_start,
+            "end": context.date_range_end,
+            "provider": "fredapi",
+        }
 
     return {"fetched": fetched, "skipped": skipped}
 
@@ -166,6 +185,9 @@ def run_tabpfn(task: str, horizon: int = 20, context: AgentContext | None = None
         y_train = labels.iloc[:split]
         regime_clf = OilRegimeClassifier(n_estimators=8)
         regime_clf.fit(X_train, y_train)
+        context._regime_clf = regime_clf
+        context._regime_X_test = X_test
+        context._regime_y_test = labels.iloc[split:]
         pred = regime_clf.predict(X_test)
         proba = regime_clf.predict_proba(X_test)
         uncertainty = regime_clf.uncertainty(X_test)
