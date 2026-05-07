@@ -340,7 +340,7 @@ def detect_drift(context: AgentContext) -> dict[str, Any]:
     return context.drift_result
 
 
-def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> np.ndarray:
+def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> Any:
     from tabpfn_extensions import interpretability
 
     explainer = interpretability.TabPFNExplainer(clf.estimators_[0])
