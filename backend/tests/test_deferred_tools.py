@@ -154,3 +154,34 @@ def test_evaluate_features_returns_ranked_top_features(ctx):
 def test_evaluate_features_raises_without_regime_clf(ctx):
     with pytest.raises(ValueError, match="run_tabpfn"):
         evaluate_features(context=ctx)
+
+
+# ── fetch_geopolitical_risk ────────────────────────────────────────────────────
+
+from src.agent.tools import fetch_geopolitical_risk  # noqa: E402
+
+
+def test_fetch_geopolitical_risk_populates_signals(ctx):
+    dates = pd.date_range("2022-01-01", periods=10, freq="D")
+    fake_gpr = pd.Series(range(10), index=dates, name="GPR", dtype=float)
+
+    with patch("src.agent.tools.fetch_gpr_series", return_value=fake_gpr):
+        result = fetch_geopolitical_risk(context=ctx)
+
+    assert "GPR" in ctx.signals
+    assert len(ctx.signals["GPR"]) == 10
+    assert result["fetched"]["GPR"] == 10
+
+
+def test_fetch_geopolitical_risk_writes_data_manifest(ctx):
+    dates = pd.date_range("2022-01-01", periods=10, freq="D")
+    fake_gpr = pd.Series(range(10), index=dates, name="GPR", dtype=float)
+
+    with patch("src.agent.tools.fetch_gpr_series", return_value=fake_gpr):
+        fetch_geopolitical_risk(context=ctx)
+
+    entry = ctx.data_manifest["data_sources"]["GPR"]
+    assert entry["rows"] == 10
+    assert entry["provider"] == "matteoiacoviello.com"
+    assert entry["start"] == ctx.date_range_start
+    assert entry["end"] == ctx.date_range_end

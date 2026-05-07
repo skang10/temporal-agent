@@ -9,6 +9,7 @@ import pandas as pd
 from src.agent.registry import registry
 from src.config import settings
 from src.data.connectors import fetch_fred_series, fetch_price_series
+from src.data.gpr import fetch_gpr_series
 from src.featurizer import TimeSeriesFeaturizer
 from src.inference import DirectionClassifier, OilRegimeClassifier
 
@@ -380,3 +381,23 @@ def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> d
         "n_features_evaluated": len(feature_names),
     }
     return context.shap_result
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+)
+def fetch_geopolitical_risk(context: AgentContext) -> dict[str, Any]:
+    """Fetch the Geopolitical Risk (GPR) index and add it to context signals."""
+    series = fetch_gpr_series(context.date_range_start, context.date_range_end)
+    context.signals["GPR"] = series
+    context.data_manifest.setdefault("data_sources", {})["GPR"] = {
+        "rows": len(series),
+        "start": context.date_range_start,
+        "end": context.date_range_end,
+        "provider": "matteoiacoviello.com",
+    }
+    return {"fetched": {"GPR": len(series)}}
