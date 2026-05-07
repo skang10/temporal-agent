@@ -79,12 +79,17 @@ async def run_agent_loop(
         ]
 
         last_text = ""
+        total_input_tokens = 0
+        total_output_tokens = 0
         for _ in range(MAX_ITERATIONS):
             response = await openai_client.chat.completions.create(
                 model=settings.agent_model,
                 tools=registry.schemas(),  # type: ignore[arg-type]
                 messages=messages,  # type: ignore[arg-type]
             )
+            if response.usage:
+                total_input_tokens += response.usage.prompt_tokens
+                total_output_tokens += response.usage.completion_tokens
             choice = response.choices[0]
 
             if choice.message.content:
@@ -135,7 +140,21 @@ async def run_agent_loop(
         else:
             raise RuntimeError(f"Agent loop exceeded max iterations ({MAX_ITERATIONS})")
 
-        await _publish(redis_client, channel, {"type": "done", "summary": last_text})
+        estimated_cost = (
+            total_input_tokens / 1000 * settings.agent_model_input_cost_per_1k
+            + total_output_tokens / 1000 * settings.agent_model_output_cost_per_1k
+        )
+        usage = {
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+            "estimated_cost_usd": round(estimated_cost, 6),
+        }
+
+        await _publish(
+            redis_client,
+            channel,
+            {"type": "done", "summary": last_text, "usage": usage},
+        )
 
         async with AsyncSession(engine) as session:
             run = await session.get(Run, run_id)
@@ -146,6 +165,7 @@ async def run_agent_loop(
                     "regime": context.regime_result,
                     "direction": context.direction_result,
                     "summary": last_text,
+                    "usage": usage,
                 }
                 await session.commit()
 

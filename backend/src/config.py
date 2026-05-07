@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     agent_model: str = "gpt-5.4"
     agent_model_fast: str = "gpt-5.4-mini"
+    # Per-token pricing in USD (update when actual rates are published)
+    agent_model_input_cost_per_1k: float = 0.01
+    agent_model_output_cost_per_1k: float = 0.03
 
     fred_api_key: str = ""
     eia_api_key: str = ""
