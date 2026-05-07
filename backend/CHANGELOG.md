@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.3.0...temporal-agent-backend-v0.4.0) (2026-05-07)
+
+
+### Features
+
+* tool registry, agent tools, and ReAct loop  ([#54](https://github.com/skang10/temporal-agent/issues/54)) ([c22ba0b](https://github.com/skang10/temporal-agent/commit/c22ba0b6840e986eaea8547806f377df485b9ded))
+
+
+### Bug Fixes
+
+* balanced regime labels and direction column display in demo ([#52](https://github.com/skang10/temporal-agent/issues/52)) ([631b5b0](https://github.com/skang10/temporal-agent/commit/631b5b0dda64a81b108762ff03aa7ab51d89beb5))
+
 ## [0.3.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.2.0...temporal-agent-backend-v0.3.0) (2026-05-04)
 
 
