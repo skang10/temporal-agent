@@ -25,12 +25,16 @@ SYSTEM_PROMPT = (
     "Given a date range and analysis tasks, use the tools in this order:\n"
     "1. fetch_data — pull WTI (CL=F), DXY (DX-Y.NYB), XLE, SPY price series and INDPRO macro "
     "data\n"
-    "2. engineer_features — featurize with windows [5, 20, 60] and lags [1, 5, 20]\n"
-    "3. run_tabpfn with task='regime' — classify the current oil market regime\n"
-    "4. run_tabpfn with task='direction' — predict WTI price direction over the next 20 trading "
+    "2. fetch_geopolitical_risk — add GPR index to signals\n"
+    "3. engineer_features — featurize with windows [5, 20, 60] and lags [1, 5, 20]\n"
+    "4. detect_drift — check if recent feature distributions have shifted\n"
+    "5. run_tabpfn with task='regime' — classify the current oil market regime\n"
+    "6. run_tabpfn with task='direction' — predict WTI price direction over the next 20 trading "
     "days\n"
-    "5. explain_prediction — pass the regime, direction, confidence, and 2-3 key feature "
-    "names\n\n"
+    "7. evaluate_features — compute SHAP feature importances from the regime classifier\n"
+    "8. backtest — walk-forward regime accuracy + direction strategy Sharpe vs SPY\n"
+    "9. explain_prediction — pass the regime, direction, confidence, and top feature names from "
+    "evaluate_features\n\n"
     "After calling explain_prediction, write a concise natural language summary (3-5 sentences) "
     "grounded in the actual confidence scores and feature values returned by the tools."
 )
@@ -169,8 +173,12 @@ async def run_agent_loop(
                 run.result = {
                     "regime": context.regime_result,
                     "direction": context.direction_result,
+                    "drift": context.drift_result,
+                    "feature_importance": context.shap_result,
+                    "backtest": context.backtest_result,
                     "summary": last_text,
                     "usage": usage,
+                    "data_manifest": context.data_manifest,
                 }
                 await session.commit()
 
