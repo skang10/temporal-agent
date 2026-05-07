@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from src.agent.registry import registry
@@ -286,3 +287,53 @@ def explain_prediction(
         "confidence": confidence,
         "key_features": key_features,
     }
+
+
+def _psi(expected: np.ndarray, actual: np.ndarray, buckets: int = 10) -> float:
+    """Population Stability Index between two distributions."""
+    breakpoints = np.percentile(expected, np.linspace(0, 100, buckets + 1))
+    expected_dist = np.histogram(expected, bins=breakpoints)[0] / len(expected)
+    actual_dist = np.histogram(actual, bins=breakpoints)[0] / len(actual)
+    expected_dist = np.clip(expected_dist, 1e-4, None)
+    actual_dist = np.clip(actual_dist, 1e-4, None)
+    return float(np.sum((actual_dist - expected_dist) * np.log(actual_dist / expected_dist)))
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+)
+def detect_drift(context: AgentContext) -> dict[str, Any]:
+    """Detect feature distribution drift using KS test and PSI on historical vs recent data."""
+    if context.features is None:
+        raise ValueError("No features in context. Call engineer_features first.")
+
+    from scipy.stats import ks_2samp
+
+    features = context.features.dropna()
+    split = int(len(features) * 0.8)
+    historical = features.iloc[:split]
+    recent = features.iloc[split:]
+
+    ks_results: dict[str, Any] = {}
+    drifted: list[str] = []
+    for col in features.columns:
+        stat, pval = ks_2samp(historical[col].values, recent[col].values)
+        ks_results[col] = {"statistic": round(float(stat), 4), "p_value": round(float(pval), 4)}
+        if pval < 0.05:
+            drifted.append(col)
+
+    psi_score = float(
+        np.mean([_psi(historical[col].values, recent[col].values) for col in features.columns])
+    )
+
+    context.drift_result = {
+        "drift_detected": psi_score >= 0.1,
+        "psi_score": round(psi_score, 4),
+        "drifted_features": drifted,
+        "ks_results": ks_results,
+    }
+    return context.drift_result

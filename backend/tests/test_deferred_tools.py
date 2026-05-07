@@ -78,3 +78,42 @@ def test_fetch_data_writes_to_data_manifest(ctx):
     entry = ctx.data_manifest["data_sources"]["CL=F"]
     assert entry["rows"] == 5
     assert entry["provider"] == "yfinance"
+
+
+# ── detect_drift ──────────────────────────────────────────────────────────────
+
+from src.agent.tools import detect_drift  # noqa: E402
+
+
+def test_detect_drift_flags_shifted_distribution(ctx):
+    n = 100
+    dates = pd.date_range("2022-01-01", periods=n, freq="B")
+    np.random.seed(0)
+    # f1: last 20% shifted by +10 (big shift), f2: random noise (no shift)
+    data_f1 = np.concatenate([np.random.randn(80), np.random.randn(20) + 10])
+    data_f2 = np.random.randn(n)
+    ctx.features = pd.DataFrame({"f1": data_f1, "f2": data_f2}, index=dates)
+
+    result = detect_drift(context=ctx)
+
+    assert result["drift_detected"] is True
+    assert "f1" in result["drifted_features"]
+    assert ctx.drift_result is not None
+
+
+def test_detect_drift_result_has_required_keys(ctx):
+    n = 100
+    dates = pd.date_range("2022-01-01", periods=n, freq="B")
+    np.random.seed(0)
+    ctx.features = pd.DataFrame({"f1": np.random.randn(n), "f2": np.random.randn(n)}, index=dates)
+
+    result = detect_drift(context=ctx)
+
+    assert set(result.keys()) == {"drift_detected", "psi_score", "drifted_features", "ks_results"}
+    assert isinstance(result["psi_score"], float)
+    assert isinstance(result["ks_results"], dict)
+
+
+def test_detect_drift_raises_without_features(ctx):
+    with pytest.raises(ValueError, match="engineer_features"):
+        detect_drift(context=ctx)
