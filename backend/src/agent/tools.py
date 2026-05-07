@@ -342,7 +342,7 @@ def detect_drift(context: AgentContext) -> dict[str, Any]:
 def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> np.ndarray:
     from tabpfn_extensions import interpretability
 
-    explainer = interpretability.TabPFNExplainer(clf._clf)
+    explainer = interpretability.TabPFNExplainer(clf.estimators_[0])
     return explainer.shap_values(X)  # shape: (n_samples, n_features, n_classes)
 
 

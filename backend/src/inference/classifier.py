@@ -36,6 +36,11 @@ class OilRegimeClassifier:
         self._clf = TabPFNClassifier(n_estimators=n_estimators)
         self._fitted = False
 
+    @property
+    def estimators_(self) -> list:
+        """Return the ensemble members for SHAP interpretability."""
+        return self._clf.estimators_
+
     def fit(self, X: pd.DataFrame, y: pd.Series) -> OilRegimeClassifier:
         """Fit on feature matrix X and regime label series y."""
         self._clf.fit(X.to_numpy(), y.to_numpy())
