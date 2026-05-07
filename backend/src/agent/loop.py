@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 
 import openai
 import redis.asyncio as aioredis
+import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agent.registry import registry
@@ -14,6 +15,8 @@ from src.agent.tools import AgentContext
 from src.config import settings
 from src.db.models import Run, RunStatus
 from src.db.session import engine
+
+log = structlog.get_logger()
 
 SYSTEM_PROMPT = (
     "You are an oil market intelligence analyst. You have access to tools "
@@ -78,6 +81,7 @@ async def run_agent_loop(
             },
         ]
 
+        log.info("agent.loop.start", run_id=str(run_id), model=settings.agent_model)
         last_text = ""
         total_input_tokens = 0
         total_output_tokens = 0
@@ -150,6 +154,7 @@ async def run_agent_loop(
             "estimated_cost_usd": round(estimated_cost, 6),
         }
 
+        log.info("agent.loop.done", run_id=str(run_id), model=settings.agent_model, **usage)
         await _publish(
             redis_client,
             channel,
