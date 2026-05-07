@@ -31,6 +31,9 @@ class Settings(BaseSettings):
 
     sentry_dsn: str = ""
 
+    gpr_data_url: str = "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls"
+    gpr_cache_ttl_hours: int = 24
+
     cors_origins: list[str] = ["http://localhost:3000"]
 
 

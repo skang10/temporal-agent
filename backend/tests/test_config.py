@@ -13,3 +13,18 @@ def test_cors_origins_configurable():
 
 def test_env_file_uses_project_root():
     assert Settings.model_config["env_file"] == PROJECT_ROOT / ".env"
+
+
+def test_settings_has_gpr_data_url():
+    from src.config import settings
+
+    assert (
+        settings.gpr_data_url
+        == "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls"
+    )
+
+
+def test_settings_has_gpr_cache_ttl_hours():
+    from src.config import settings
+
+    assert settings.gpr_cache_ttl_hours == 24
