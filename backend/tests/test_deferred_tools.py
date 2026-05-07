@@ -117,3 +117,40 @@ def test_detect_drift_result_has_required_keys(ctx):
 def test_detect_drift_raises_without_features(ctx):
     with pytest.raises(ValueError, match="engineer_features"):
         detect_drift(context=ctx)
+
+
+# ── evaluate_features ──────────────────────────────────────────────────────────
+
+from unittest.mock import MagicMock  # noqa: E402
+
+from src.agent.tools import evaluate_features  # noqa: E402
+
+
+def test_evaluate_features_returns_ranked_top_features(ctx):
+    n_samples, n_features, n_classes = 20, 5, 3
+    dates = pd.date_range("2022-01-01", periods=n_samples, freq="B")
+    # Build fixed SHAP: feature index 2 has highest importance, index 0 second
+    shap_vals = np.zeros((n_samples, n_features, n_classes))
+    shap_vals[:, 2, :] = 1.0
+    shap_vals[:, 0, :] = 0.5
+
+    ctx._regime_clf = MagicMock()
+    ctx._regime_X_test = pd.DataFrame(
+        np.random.randn(n_samples, n_features),
+        index=dates,
+        columns=["f0", "f1", "f2", "f3", "f4"],
+    )
+
+    with patch("src.agent.tools._compute_shap_values", return_value=shap_vals):
+        result = evaluate_features(top_n=3, context=ctx)
+
+    assert len(result["top_features"]) == 3
+    assert result["top_features"][0]["name"] == "f2"
+    assert result["top_features"][1]["name"] == "f0"
+    assert result["n_features_evaluated"] == 5
+    assert ctx.shap_result is not None
+
+
+def test_evaluate_features_raises_without_regime_clf(ctx):
+    with pytest.raises(ValueError, match="run_tabpfn"):
+        evaluate_features(context=ctx)

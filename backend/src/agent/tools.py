@@ -337,3 +337,46 @@ def detect_drift(context: AgentContext) -> dict[str, Any]:
         "ks_results": ks_results,
     }
     return context.drift_result
+
+
+def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> np.ndarray:
+    from tabpfn_extensions import interpretability
+
+    explainer = interpretability.TabPFNExplainer(clf._clf)
+    return explainer.shap_values(X)  # shape: (n_samples, n_features, n_classes)
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {
+            "top_n": {
+                "type": "integer",
+                "description": "Number of top features to return by SHAP importance. Default 10.",
+                "default": 10,
+            }
+        },
+        "required": [],
+    }
+)
+def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> dict[str, Any]:
+    """Compute SHAP feature importances using the fitted regime classifier."""
+    if context is None or context._regime_clf is None or context._regime_X_test is None:
+        raise ValueError(
+            "No fitted regime classifier in context. Call run_tabpfn(task='regime') first."
+        )
+
+    shap_vals = _compute_shap_values(context._regime_clf, context._regime_X_test)
+    # shap_vals shape: (n_samples, n_features, n_classes)
+    importance = np.abs(shap_vals).mean(axis=(0, 2))
+
+    feature_names = list(context._regime_X_test.columns)
+    ranked = sorted(zip(feature_names, importance.tolist()), key=lambda x: x[1], reverse=True)
+
+    top = [{"name": name, "importance": round(imp, 4)} for name, imp in ranked[:top_n]]
+
+    context.shap_result = {
+        "top_features": top,
+        "n_features_evaluated": len(feature_names),
+    }
+    return context.shap_result
