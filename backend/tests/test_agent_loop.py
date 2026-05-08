@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agent.loop import build_system_prompt, phase_for_tool, run_agent_loop
+from src.agent.loop import RunCanceled, build_system_prompt, phase_for_tool, run_agent_loop
 from src.db.models import RunStatus
 
 
@@ -93,6 +93,49 @@ def test_phase_for_tool_maps_other_tools() -> None:
     assert phase_for_tool("fetch_data", {}) == "fetching_market_data"
     assert phase_for_tool("evaluate_features", {}) == "evaluating_features"
     assert phase_for_tool("backtest", {}) == "backtesting"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_loop_stops_if_run_already_canceled() -> None:
+    run = MagicMock()
+    run.status = RunStatus.CANCELED
+    sessions = _SessionFactory(run)
+    redis_client = AsyncMock()
+    openai_client = MagicMock()
+    openai_client.chat.completions.create = AsyncMock()
+
+    with (
+        patch("src.agent.loop.AsyncSession", sessions),
+        patch("src.agent.loop.aioredis.from_url", return_value=redis_client),
+        patch("src.agent.loop.openai.AsyncOpenAI", return_value=openai_client),
+    ):
+        await run_agent_loop(uuid.uuid4(), "2024-01-01", "2024-02-01", ["regime"])
+
+    openai_client.chat.completions.create.assert_not_called()
+    assert run.status == RunStatus.CANCELED
+    phase_messages = [
+        call.args[1]
+        for call in redis_client.publish.await_args_list
+        if json.loads(call.args[1]).get("type") == "phase"
+    ]
+    assert json.loads(phase_messages[-1])["phase"] == "canceled"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_loop_preserves_canceled_status() -> None:
+    run = MagicMock()
+    run.status = RunStatus.RUNNING
+    sessions = _SessionFactory(run)
+    redis_client = AsyncMock()
+
+    with (
+        patch("src.agent.loop.AsyncSession", sessions),
+        patch("src.agent.loop.aioredis.from_url", return_value=redis_client),
+        patch("src.agent.loop.openai.AsyncOpenAI", side_effect=RunCanceled),
+    ):
+        await run_agent_loop(uuid.uuid4(), "2024-01-01", "2024-02-01", ["regime"])
+
+    assert run.status == RunStatus.CANCELED
 
 
 @pytest.mark.asyncio

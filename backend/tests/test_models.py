@@ -9,6 +9,7 @@ def test_run_status_values():
     assert RunStatus.RUNNING == "running"
     assert RunStatus.COMPLETED == "completed"
     assert RunStatus.FAILED == "failed"
+    assert RunStatus.CANCELED == "canceled"
 
 
 def test_run_result_valid():

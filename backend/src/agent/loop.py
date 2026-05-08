@@ -88,6 +88,11 @@ SYSTEM_PROMPT = build_system_prompt("quick")
 
 MAX_ITERATIONS = 10
 
+
+class RunCanceled(Exception):
+    """Raised when a run has been canceled cooperatively."""
+
+
 TOOL_PHASES = {
     "fetch_data": "fetching_market_data",
     "fetch_geopolitical_risk": "fetching_geopolitical_risk",
@@ -124,6 +129,13 @@ async def _publish_phase(
     await _publish(redis_client, channel, {"type": "phase", "phase": phase, "tool": tool})
 
 
+async def _raise_if_canceled(run_id: uuid.UUID) -> None:
+    async with AsyncSession(engine) as session:
+        run = await session.get(Run, run_id)
+        if run is not None and run.status == RunStatus.CANCELED:
+            raise RunCanceled
+
+
 async def run_agent_loop(
     run_id: uuid.UUID,
     date_range_start: str,
@@ -143,6 +155,7 @@ async def run_agent_loop(
     channel = f"run:{run_id}"
 
     try:
+        await _raise_if_canceled(run_id)
         async with AsyncSession(engine) as session:
             run = await session.get(Run, run_id)
             if run is None:
@@ -173,6 +186,7 @@ async def run_agent_loop(
         total_input_tokens = 0
         total_output_tokens = 0
         for _ in range(MAX_ITERATIONS):
+            await _raise_if_canceled(run_id)
             response = await openai_client.chat.completions.create(
                 model=settings.agent_model,
                 tools=registry.schemas(),  # type: ignore[arg-type]
@@ -208,6 +222,7 @@ async def run_agent_loop(
                 for tc in choice.message.tool_calls:
                     name = tc.function.name  # type: ignore[union-attr]
                     arguments = json.loads(tc.function.arguments)  # type: ignore[union-attr]
+                    await _raise_if_canceled(run_id)
                     await _publish_phase(
                         redis_client,
                         channel,
@@ -221,6 +236,7 @@ async def run_agent_loop(
                         {"type": "tool_call", "tool": name, "input": arguments},
                     )
                     result = await asyncio.to_thread(registry.dispatch, name, arguments, context)
+                    await _raise_if_canceled(run_id)
                     await _publish(
                         redis_client,
                         channel,
@@ -271,6 +287,16 @@ async def run_agent_loop(
                     "usage": usage,
                     "data_manifest": context.data_manifest,
                 }
+                await session.commit()
+
+    except RunCanceled:
+        await _publish_phase(redis_client, channel, run_id, "canceled")
+        async with AsyncSession(engine) as session:
+            run = await session.get(Run, run_id)
+            if run is not None:
+                run.status = RunStatus.CANCELED
+                run.completed_at = datetime.now(UTC).replace(tzinfo=None)
+                run.error = run.error or "Canceled by user"
                 await session.commit()
 
     except Exception as exc:

@@ -122,3 +122,44 @@ def test_get_run_returns_422_for_invalid_uuid() -> None:
     client = TestClient(app)
     response = client.get("/api/runs/not-a-uuid")
     assert response.status_code == 422
+
+
+def test_cancel_run_marks_run_canceled() -> None:
+    mock_run = _make_mock_run()
+    mock_run.status = "running"
+    mock_run.error = None
+
+    async def override_session():  # type: ignore[return]
+        mock_session = AsyncMock()
+        mock_session.get.return_value = mock_run
+        yield mock_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        response = client.post("/api/runs/00000000-0000-0000-0000-000000000001/cancel")
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+    assert response.status_code == 200
+    assert mock_run.status == "canceled"
+    assert mock_run.error == "Canceled by user"
+
+
+def test_cancel_run_returns_409_for_completed_run() -> None:
+    mock_run = _make_mock_run()
+    mock_run.status = "completed"
+
+    async def override_session():  # type: ignore[return]
+        mock_session = AsyncMock()
+        mock_session.get.return_value = mock_run
+        yield mock_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        client = TestClient(app)
+        response = client.post("/api/runs/00000000-0000-0000-0000-000000000001/cancel")
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+    assert response.status_code == 409
