@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.4.0...temporal-agent-backend-v0.5.0) (2026-05-08)
+
+
+### Features
+
+* deferred agent tools (GPR, drift, SHAP, backtest) ([#56](https://github.com/skang10/temporal-agent/issues/56)) ([22d8932](https://github.com/skang10/temporal-agent/commit/22d8932ce65e739b4ed3ea9e467ddd32dfa567b0))
+
 ## [0.4.0](https://github.com/skang10/temporal-agent/compare/temporal-agent-backend-v0.3.0...temporal-agent-backend-v0.4.0) (2026-05-07)
 
 
