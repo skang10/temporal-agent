@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+import os
 
-from api.logging import NoisyEndpointFilter
+from api.logging import NoisyEndpointFilter, configure_logging, should_log_request
 
 
 def _access_record(method: str, path: str) -> logging.LogRecord:
@@ -35,3 +36,23 @@ def test_noisy_endpoint_filter_keeps_run_mutations() -> None:
     assert NoisyEndpointFilter().filter(
         _access_record("POST", "/api/runs/00000000-0000-0000-0000-000000000001")
     )
+
+
+def test_should_log_request_skips_polling_and_health() -> None:
+    assert not should_log_request("GET", "/health")
+    assert not should_log_request("GET", "/api/runs/00000000-0000-0000-0000-000000000001")
+
+
+def test_should_log_request_keeps_useful_requests() -> None:
+    assert should_log_request("POST", "/api/analyze")
+    assert should_log_request("GET", "/api/history")
+
+
+def test_configure_logging_disables_progress_bars_by_default(monkeypatch) -> None:
+    monkeypatch.delenv("TQDM_DISABLE", raising=False)
+    monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
+
+    configure_logging()
+
+    assert "TQDM_DISABLE" in os.environ
+    assert "HF_HUB_DISABLE_PROGRESS_BARS" in os.environ

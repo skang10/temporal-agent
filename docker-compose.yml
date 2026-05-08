@@ -8,6 +8,8 @@ services:
       - HOME=/tmp
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - REDIS_URL=redis://redis:6379
+      - TQDM_DISABLE=1
+      - HF_HUB_DISABLE_PROGRESS_BARS=1
     depends_on:
       postgres:
         condition: service_healthy
@@ -16,7 +18,7 @@ services:
     volumes:
       - ./backend:/app
       - backend_venv:/app/.venv
-    command: bash -c "uv sync --frozen --no-dev && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"
+    command: bash -c "uv sync --frozen --no-dev && .venv/bin/uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload --no-access-log"
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health')\""]
