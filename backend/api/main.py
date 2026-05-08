@@ -5,9 +5,12 @@ import structlog
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.logging import configure_logging
 from api.routes import analyze, derivatives, history
 from api.ws import stream_handler
 from src.config import settings
+
+configure_logging()
 
 log = structlog.get_logger()
 
