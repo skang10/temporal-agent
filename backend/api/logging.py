@@ -1,15 +1,10 @@
 from __future__ import annotations
 
 import logging
-import os
 from typing import Any
 
 NOISY_ACCESS_PATHS = ("/health",)
 NOISY_ACCESS_PREFIXES = ("/api/runs/",)
-PROGRESS_BAR_ENV_DEFAULTS = {
-    "TQDM_DISABLE": "1",
-    "HF_HUB_DISABLE_PROGRESS_BARS": "1",
-}
 
 
 class NoisyEndpointFilter(logging.Filter):
@@ -22,20 +17,29 @@ class NoisyEndpointFilter(logging.Filter):
 
 def configure_logging() -> None:
     """Apply backend logging defaults once."""
-    for name, value in PROGRESS_BAR_ENV_DEFAULTS.items():
-        os.environ.setdefault(name, value)
-
     access_logger = logging.getLogger("uvicorn.access")
     if not any(isinstance(log_filter, NoisyEndpointFilter) for log_filter in access_logger.filters):
         access_logger.addFilter(NoisyEndpointFilter())
 
 
-def should_log_request(method: str | None, path: str | None) -> bool:
-    if method != "GET" or path is None:
+def request_log_level(method: str | None, path: str | None) -> str:
+    return "debug" if _is_noisy_request(method, path) else "info"
+
+
+def should_log_request(
+    method: str | None, path: str | None, *, include_noisy: bool = False
+) -> bool:
+    if include_noisy:
         return True
-    if path in NOISY_ACCESS_PATHS:
+    return not _is_noisy_request(method, path)
+
+
+def _is_noisy_request(method: str | None, path: str | None) -> bool:
+    if method != "GET" or path is None:
         return False
-    return not any(path.startswith(prefix) for prefix in NOISY_ACCESS_PREFIXES)
+    if path in NOISY_ACCESS_PATHS:
+        return True
+    return any(path.startswith(prefix) for prefix in NOISY_ACCESS_PREFIXES)
 
 
 def _extract_access_request(record: logging.LogRecord) -> tuple[str | None, str | None]:

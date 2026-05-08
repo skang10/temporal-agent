@@ -3,7 +3,12 @@ from __future__ import annotations
 import logging
 import os
 
-from api.logging import NoisyEndpointFilter, configure_logging, should_log_request
+from api.logging import (
+    NoisyEndpointFilter,
+    configure_logging,
+    request_log_level,
+    should_log_request,
+)
 
 
 def _access_record(method: str, path: str) -> logging.LogRecord:
@@ -48,11 +53,27 @@ def test_should_log_request_keeps_useful_requests() -> None:
     assert should_log_request("GET", "/api/history")
 
 
-def test_configure_logging_disables_progress_bars_by_default(monkeypatch) -> None:
+def test_should_log_request_can_include_noisy_debug_requests() -> None:
+    assert should_log_request("GET", "/health", include_noisy=True)
+    assert should_log_request(
+        "GET", "/api/runs/00000000-0000-0000-0000-000000000001", include_noisy=True
+    )
+
+
+def test_request_log_level_demotes_polling_and_health_to_debug() -> None:
+    assert request_log_level("GET", "/health") == "debug"
+    assert request_log_level("GET", "/api/runs/00000000-0000-0000-0000-000000000001") == "debug"
+
+
+def test_request_log_level_keeps_useful_requests_at_info() -> None:
+    assert request_log_level("POST", "/api/analyze") == "info"
+
+
+def test_configure_logging_keeps_progress_bars_enabled(monkeypatch) -> None:
     monkeypatch.delenv("TQDM_DISABLE", raising=False)
     monkeypatch.delenv("HF_HUB_DISABLE_PROGRESS_BARS", raising=False)
 
     configure_logging()
 
-    assert "TQDM_DISABLE" in os.environ
-    assert "HF_HUB_DISABLE_PROGRESS_BARS" in os.environ
+    assert "TQDM_DISABLE" not in os.environ
+    assert "HF_HUB_DISABLE_PROGRESS_BARS" not in os.environ

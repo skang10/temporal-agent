@@ -5,7 +5,7 @@ dev:
 
 dev-backend:
 	@test -f .env || (echo "ERROR: .env not found. Run: cp .env.example .env and fill in secrets." && exit 1)
-	cd backend && TQDM_DISABLE=1 HF_HUB_DISABLE_PROGRESS_BARS=1 uv run uvicorn api.main:app --reload --port 8000 --no-access-log
+	cd backend && uv run uvicorn api.main:app --reload --port 8000 --no-access-log
 
 dev-frontend:
 	cd frontend && npm run dev

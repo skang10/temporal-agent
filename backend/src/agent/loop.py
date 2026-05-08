@@ -4,7 +4,7 @@ import asyncio
 import json
 import uuid
 from datetime import UTC, datetime
-from typing import Literal
+from typing import Any, Literal
 
 import openai
 import redis.asyncio as aioredis
@@ -88,9 +88,40 @@ SYSTEM_PROMPT = build_system_prompt("quick")
 
 MAX_ITERATIONS = 10
 
+TOOL_PHASES = {
+    "fetch_data": "fetching_market_data",
+    "fetch_geopolitical_risk": "fetching_geopolitical_risk",
+    "engineer_features": "engineering_features",
+    "detect_drift": "detecting_drift",
+    "evaluate_features": "evaluating_features",
+    "backtest": "backtesting",
+    "explain_prediction": "explaining",
+}
+
+
+def phase_for_tool(name: str, arguments: dict[str, Any]) -> str:
+    if name == "run_tabpfn":
+        task = arguments.get("task")
+        if task == "regime":
+            return "predicting_regime"
+        if task == "direction":
+            return "predicting_direction"
+    return TOOL_PHASES.get(name, "running_tool")
+
 
 async def _publish(redis_client: aioredis.Redis, channel: str, message: dict) -> None:  # type: ignore[type-arg]
     await redis_client.publish(channel, json.dumps(message, default=str))
+
+
+async def _publish_phase(
+    redis_client: aioredis.Redis,  # type: ignore[type-arg]
+    channel: str,
+    run_id: uuid.UUID,
+    phase: str,
+    tool: str | None = None,
+) -> None:
+    log.info("agent.phase", run_id=str(run_id), phase=phase, tool=tool)
+    await _publish(redis_client, channel, {"type": "phase", "phase": phase, "tool": tool})
 
 
 async def run_agent_loop(
@@ -137,6 +168,7 @@ async def run_agent_loop(
         ]
 
         log.info("agent.loop.start", run_id=str(run_id), model=settings.agent_model)
+        await _publish_phase(redis_client, channel, run_id, "starting")
         last_text = ""
         total_input_tokens = 0
         total_output_tokens = 0
@@ -176,6 +208,13 @@ async def run_agent_loop(
                 for tc in choice.message.tool_calls:
                     name = tc.function.name  # type: ignore[union-attr]
                     arguments = json.loads(tc.function.arguments)  # type: ignore[union-attr]
+                    await _publish_phase(
+                        redis_client,
+                        channel,
+                        run_id,
+                        phase_for_tool(name, arguments),
+                        tool=name,
+                    )
                     await _publish(
                         redis_client,
                         channel,
@@ -210,6 +249,7 @@ async def run_agent_loop(
         }
 
         log.info("agent.loop.done", run_id=str(run_id), model=settings.agent_model, **usage)
+        await _publish_phase(redis_client, channel, run_id, "completed")
         await _publish(
             redis_client,
             channel,
@@ -234,6 +274,7 @@ async def run_agent_loop(
                 await session.commit()
 
     except Exception as exc:
+        await _publish_phase(redis_client, channel, run_id, "failed")
         await _publish(redis_client, channel, {"type": "error", "message": str(exc)})
         async with AsyncSession(engine) as session:
             run = await session.get(Run, run_id)

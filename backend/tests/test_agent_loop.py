@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agent.loop import build_system_prompt, run_agent_loop
+from src.agent.loop import build_system_prompt, phase_for_tool, run_agent_loop
 from src.db.models import RunStatus
 
 
@@ -84,6 +84,17 @@ def test_full_prompt_runs_full_backtest() -> None:
     assert "backtest with horizon=20, step=20, max_windows=null" in prompt
 
 
+def test_phase_for_tool_maps_regime_and_direction() -> None:
+    assert phase_for_tool("run_tabpfn", {"task": "regime"}) == "predicting_regime"
+    assert phase_for_tool("run_tabpfn", {"task": "direction"}) == "predicting_direction"
+
+
+def test_phase_for_tool_maps_other_tools() -> None:
+    assert phase_for_tool("fetch_data", {}) == "fetching_market_data"
+    assert phase_for_tool("evaluate_features", {}) == "evaluating_features"
+    assert phase_for_tool("backtest", {}) == "backtesting"
+
+
 @pytest.mark.asyncio
 async def test_run_agent_loop_marks_failed_when_openai_credentials_missing() -> None:
     run = MagicMock()
@@ -120,3 +131,12 @@ async def test_run_agent_loop_marks_failed_when_max_iterations_exhausted() -> No
     assert openai_client.chat.completions.create.await_count == 10
     assert run.status == RunStatus.FAILED
     assert "max iterations" in run.error.lower()
+    phase_messages = [
+        call.args[1]
+        for call in redis_client.publish.await_args_list
+        if json.loads(call.args[1]).get("type") == "phase"
+    ]
+    phases = [json.loads(message)["phase"] for message in phase_messages]
+    assert phases[0] == "starting"
+    assert "explaining" in phases
+    assert phases[-1] == "failed"
