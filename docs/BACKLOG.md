@@ -21,6 +21,7 @@ Hand-labeled known historical regime periods added to `scripts/demo.py` as `_KNO
 | Session 1 | Data connectors + TimeSeriesFeaturizer | ✅ Done (PR #43) |
 | Session 2 | TabPFN inference wrappers | ✅ Done (PR #45) |
 | Session 3 | `src/db/` — SQLModel run/history models + Alembic migration | ✅ Done (PR #51) |
-| Session 4 | `src/agent/` — tool definitions + ReAct loop (Anthropic SDK) | Pending |
-| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub | Pending |
-| Session 6 | Frontend — RegimeDashboard + AgentStream components | Pending |
+| Session 4 | `src/agent/` — tool definitions + ReAct loop (Anthropic SDK) | ✅ Done (PR #56) |
+| Session 5 | Wire up API routes + deferred tools (drift, SHAP, backtest, GPR) | ✅ Done (PR #56) |
+| Session 6 | Frontend core — split-pane layout, AgentStream, RegimeCard, DirectionCard, SummaryPanel | Pending |
+| Session 7 | Frontend charts — DriftAlert, FeatureImportance (SHAP), BacktestChart | Pending |
