@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -20,6 +20,7 @@ class AnalyzeRequest(BaseModel):
     date_range_start: str
     date_range_end: str
     tasks: list[str] = ["regime_classification", "price_direction", "equity_outperformance"]
+    analysis_mode: Literal["quick", "full"] = "quick"
 
 
 class AnalyzeResponse(BaseModel):
@@ -50,6 +51,7 @@ async def trigger_analysis(
         request.date_range_start,
         request.date_range_end,
         request.tasks,
+        request.analysis_mode,
     )
 
     return AnalyzeResponse(run_id=str(run.id))
@@ -68,7 +70,7 @@ async def get_run(run_id: str, session: SessionDep) -> RunResult:
     if run is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Run not found")
 
-    return RunResult(run_id=str(run.id), status=run.status, result=run.result)
+    return RunResult(run_id=str(run.id), status=run.status, result=run.result, error=run.error)
 
 
 @router.get("/history", response_model=list[RunResult])

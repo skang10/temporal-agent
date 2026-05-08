@@ -176,6 +176,24 @@ def test_evaluate_features_accepts_2d_shap_values(ctx):
     ]
 
 
+def test_evaluate_features_limits_shap_samples_from_latest_rows(ctx):
+    n_samples, n_features = 20, 5
+    dates = pd.date_range("2022-01-01", periods=n_samples, freq="B")
+    ctx._regime_clf = MagicMock()
+    ctx._regime_X_test = pd.DataFrame(
+        np.random.randn(n_samples, n_features),
+        index=dates,
+        columns=["f0", "f1", "f2", "f3", "f4"],
+    )
+    shap_vals = np.ones((3, n_features))
+
+    with patch("src.agent.tools._compute_shap_values", return_value=shap_vals) as mock_shap:
+        evaluate_features(top_n=2, max_samples=3, context=ctx)
+
+    shap_input = mock_shap.call_args.args[1]
+    assert shap_input.index.tolist() == dates[-3:].tolist()
+
+
 def test_compute_shap_values_uses_tabpfn_extensions_get_shap_values(monkeypatch):
     X = pd.DataFrame([[1.0, 2.0]], columns=["f0", "f1"])
     clf = MagicMock()
@@ -251,10 +269,23 @@ def test_backtest_tool_stores_result_in_context(ctx):
     }
 
     with patch("src.eval.backtest.walk_forward_backtest", return_value=fake_result):
-        result = backtest(horizon=20, step=20, context=ctx)
+        result = backtest(horizon=20, step=60, max_windows=3, context=ctx)
 
     assert ctx.backtest_result == fake_result
     assert result == fake_result
+
+
+def test_backtest_tool_passes_max_windows(ctx):
+    n = 50
+    dates = pd.date_range("2022-01-01", periods=n, freq="B")
+    ctx.features = pd.DataFrame(np.random.randn(n, 3), index=dates, columns=["f1", "f2", "f3"])
+    ctx.signals["CL=F"] = pd.Series(np.linspace(70, 80, n), index=dates, name="CL=F")
+    ctx.signals["SPY"] = pd.Series(np.linspace(400, 450, n), index=dates, name="SPY")
+
+    with patch("src.eval.backtest.walk_forward_backtest", return_value={}) as mock_wfb:
+        backtest(horizon=20, step=60, max_windows=3, context=ctx)
+
+    assert mock_wfb.call_args.kwargs["max_windows"] == 3
 
 
 def test_backtest_tool_raises_without_features(ctx):

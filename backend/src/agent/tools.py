@@ -354,19 +354,29 @@ def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> Any:
                 "type": "integer",
                 "description": "Number of top features to return by SHAP importance. Default 10.",
                 "default": 10,
-            }
+            },
+            "max_samples": {
+                "type": "integer",
+                "description": "Maximum latest test rows to explain with SHAP. Default 50.",
+                "default": 50,
+            },
         },
         "required": [],
     }
 )
-def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> dict[str, Any]:
+def evaluate_features(
+    top_n: int = 10, max_samples: int = 50, context: AgentContext | None = None
+) -> dict[str, Any]:
     """Compute SHAP feature importances using the fitted regime classifier."""
     if context is None or context._regime_clf is None or context._regime_X_test is None:
         raise ValueError(
             "No fitted regime classifier in context. Call run_tabpfn(task='regime') first."
         )
 
-    shap_vals = _compute_shap_values(context._regime_clf, context._regime_X_test)
+    X_explain = (
+        context._regime_X_test.tail(max_samples) if max_samples > 0 else context._regime_X_test
+    )
+    shap_vals = _compute_shap_values(context._regime_clf, X_explain)
     values = getattr(shap_vals, "values", shap_vals)
     shap_array = np.asarray(values)
     if shap_array.ndim == 3:
@@ -376,7 +386,7 @@ def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> d
     else:
         raise ValueError(f"Unexpected SHAP values shape: {shap_array.shape}")
 
-    feature_names = list(context._regime_X_test.columns)
+    feature_names = list(X_explain.columns)
     ranked = sorted(zip(feature_names, importance.tolist()), key=lambda x: x[1], reverse=True)
 
     top = [{"name": name, "importance": round(imp, 4)} for name, imp in ranked[:top_n]]
@@ -384,6 +394,7 @@ def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> d
     context.shap_result = {
         "top_features": top,
         "n_features_evaluated": len(feature_names),
+        "n_samples_explained": len(X_explain),
     }
     return context.shap_result
 
@@ -422,12 +433,19 @@ def fetch_geopolitical_risk(context: AgentContext) -> dict[str, Any]:
                 "description": "Walk-forward step size in days. Default 20.",
                 "default": 20,
             },
+            "max_windows": {
+                "type": ["integer", "null"],
+                "description": "Maximum number of most recent walk-forward windows. Omit for all.",
+            },
         },
         "required": [],
     }
 )
 def backtest(
-    horizon: int = 20, step: int = 20, context: AgentContext | None = None
+    horizon: int = 20,
+    step: int = 20,
+    max_windows: int | None = None,
+    context: AgentContext | None = None,
 ) -> dict[str, Any]:
     """Walk-forward backtest: regime accuracy + direction strategy Sharpe vs SPY buy-and-hold."""
     if context is None or context.features is None:
@@ -445,6 +463,7 @@ def backtest(
         spy=context.signals["SPY"],
         horizon=horizon,
         step=step,
+        max_windows=max_windows,
     )
     context.backtest_result = result
     return result

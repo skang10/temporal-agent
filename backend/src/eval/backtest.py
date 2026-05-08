@@ -22,6 +22,7 @@ def walk_forward_backtest(
     horizon: int = 20,
     step: int = 20,
     min_train: int = 120,
+    max_windows: int | None = None,
 ) -> dict[str, Any]:
     """Walk-forward evaluation using an expanding window.
 
@@ -37,7 +38,11 @@ def walk_forward_backtest(
     spy_returns: list[float] = []
     n_windows = 0
 
-    for t in range(min_train, len(features) - horizon, step):
+    windows = list(range(min_train, len(features) - horizon, step))
+    if max_windows is not None:
+        windows = windows[-max_windows:] if max_windows > 0 else []
+
+    for t in windows:
         X_train = features.iloc[:t]
         X_test = features.iloc[t : t + horizon]
         y_regime_train = regime_labels.iloc[:t]

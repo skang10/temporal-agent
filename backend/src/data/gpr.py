@@ -28,7 +28,12 @@ def fetch_gpr_series(start: str, end: str) -> pd.Series:
     response = httpx.get(settings.gpr_data_url, timeout=30)
     response.raise_for_status()
 
-    df = pd.read_excel(BytesIO(response.content), engine="openpyxl")
+    try:
+        df = pd.read_excel(BytesIO(response.content), engine="xlrd")
+    except Exception as exc:
+        if exc.__class__.__name__ != "XLRDError":
+            raise
+        df = pd.read_excel(BytesIO(response.content), engine="openpyxl")
 
     if not {"date", "GPRD"}.issubset(df.columns):
         raise ValueError(

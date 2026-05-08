@@ -107,6 +107,25 @@ def test_walk_forward_backtest_scores_forward_horizon_returns():
     assert captured_returns[1][0] == pytest.approx(0.05)
 
 
+def test_walk_forward_backtest_respects_max_windows():
+    features, wti, spy = _make_data(n=300)
+    with (
+        patch("src.eval.backtest.OilRegimeClassifier", return_value=_mock_clf("range_bound")),
+        patch("src.eval.backtest.DirectionClassifier", return_value=_mock_clf("up")),
+    ):
+        result = walk_forward_backtest(
+            features,
+            wti,
+            spy,
+            horizon=20,
+            step=20,
+            min_train=120,
+            max_windows=3,
+        )
+
+    assert result["n_windows"] == 3
+
+
 def test_annualised_sharpe_zero_for_constant_returns():
     assert _annualised_sharpe([0.01, 0.01, 0.01]) == 0.0
 

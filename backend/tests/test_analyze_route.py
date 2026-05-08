@@ -43,6 +43,65 @@ def test_trigger_analysis_returns_202_with_run_id() -> None:
     assert "run_id" in response.json()
 
 
+def test_trigger_analysis_defaults_to_quick_mode() -> None:
+    mock_run = _make_mock_run()
+
+    async def override_session():  # type: ignore[return]
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.refresh = AsyncMock(return_value=None)
+        mock_run.id = "00000000-0000-0000-0000-000000000001"
+        yield mock_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with patch("api.routes.analyze.run_agent_loop") as mock_loop:
+            client = TestClient(app)
+            response = client.post(
+                "/api/analyze",
+                json={
+                    "date_range_start": "2023-01-01",
+                    "date_range_end": "2023-06-30",
+                    "tasks": ["regime_classification"],
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+    assert response.status_code == 202
+    assert mock_loop.call_args.args[-1] == "quick"
+
+
+def test_trigger_analysis_accepts_full_mode() -> None:
+    mock_run = _make_mock_run()
+
+    async def override_session():  # type: ignore[return]
+        mock_session = AsyncMock()
+        mock_session.add = MagicMock()
+        mock_session.refresh = AsyncMock(return_value=None)
+        mock_run.id = "00000000-0000-0000-0000-000000000001"
+        yield mock_session
+
+    app.dependency_overrides[get_session] = override_session
+    try:
+        with patch("api.routes.analyze.run_agent_loop") as mock_loop:
+            client = TestClient(app)
+            response = client.post(
+                "/api/analyze",
+                json={
+                    "date_range_start": "2023-01-01",
+                    "date_range_end": "2023-06-30",
+                    "tasks": ["regime_classification"],
+                    "analysis_mode": "full",
+                },
+            )
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+
+    assert response.status_code == 202
+    assert mock_loop.call_args.args[-1] == "full"
+
+
 def test_get_run_returns_404_for_missing_run() -> None:
     async def override_session():  # type: ignore[return]
         mock_session = AsyncMock()

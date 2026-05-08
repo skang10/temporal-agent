@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agent.loop import run_agent_loop
+from src.agent.loop import build_system_prompt, run_agent_loop
 from src.db.models import RunStatus
 
 
@@ -62,6 +62,26 @@ def _tool_call_response(name: str = "explain_prediction") -> SimpleNamespace:
             )
         ],
     )
+
+
+def test_quick_prompt_limits_shap_and_skips_backtest_by_default() -> None:
+    prompt = build_system_prompt("quick", ["regime_classification"])
+
+    assert "evaluate_features with top_n=5 and max_samples=5" in prompt
+    assert "Do not call backtest in quick mode unless tasks explicitly include" in prompt
+
+
+def test_quick_prompt_allows_limited_backtest_when_requested() -> None:
+    prompt = build_system_prompt("quick", ["backtest"])
+
+    assert "backtest with horizon=20, step=60, max_windows=3" in prompt
+
+
+def test_full_prompt_runs_full_backtest() -> None:
+    prompt = build_system_prompt("full", ["regime_classification"])
+
+    assert "evaluate_features with top_n=10 and max_samples=50" in prompt
+    assert "backtest with horizon=20, step=20, max_windows=null" in prompt
 
 
 @pytest.mark.asyncio
