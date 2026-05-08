@@ -341,10 +341,9 @@ def detect_drift(context: AgentContext) -> dict[str, Any]:
 
 
 def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> Any:
-    from tabpfn_extensions import interpretability
+    from tabpfn_extensions.interpretability.shap import get_shap_values
 
-    explainer = interpretability.TabPFNExplainer(clf.estimators_[0])
-    return explainer.shap_values(X)  # shape: (n_samples, n_features, n_classes)
+    return get_shap_values(clf, X)
 
 
 @registry.tool(
@@ -368,8 +367,14 @@ def evaluate_features(top_n: int = 10, context: AgentContext | None = None) -> d
         )
 
     shap_vals = _compute_shap_values(context._regime_clf, context._regime_X_test)
-    # shap_vals shape: (n_samples, n_features, n_classes)
-    importance = np.abs(shap_vals).mean(axis=(0, 2))
+    values = getattr(shap_vals, "values", shap_vals)
+    shap_array = np.asarray(values)
+    if shap_array.ndim == 3:
+        importance = np.abs(shap_array).mean(axis=(0, 2))
+    elif shap_array.ndim == 2:
+        importance = np.abs(shap_array).mean(axis=0)
+    else:
+        raise ValueError(f"Unexpected SHAP values shape: {shap_array.shape}")
 
     feature_names = list(context._regime_X_test.columns)
     ranked = sorted(zip(feature_names, importance.tolist()), key=lambda x: x[1], reverse=True)

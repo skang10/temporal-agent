@@ -42,7 +42,9 @@ def walk_forward_backtest(
         X_test = features.iloc[t : t + horizon]
         y_regime_train = regime_labels.iloc[:t]
         y_regime_test = regime_labels.iloc[t : t + horizon]
-        y_dir_train = direction_labels.reindex(X_train.index).dropna()
+        # A direction label at row i uses WTI[i + horizon]; keep training labels
+        # whose outcomes resolve before the first test row.
+        y_dir_train = direction_labels.reindex(features.iloc[: max(0, t - horizon)].index).dropna()
         y_dir_test = direction_labels.reindex(X_test.index).dropna()
 
         # Regime accuracy
@@ -57,9 +59,9 @@ def walk_forward_backtest(
             dir_clf = DirectionClassifier(n_estimators=8)
             dir_clf.fit(X_train.loc[y_dir_train.index], y_dir_train)
             pred_dir = dir_clf.predict(X_test.loc[y_dir_test.index])
-            wti_ret = wti.pct_change().reindex(y_dir_test.index)
+            wti_ret = (wti.shift(-horizon) / wti - 1).reindex(y_dir_test.index)
             strategy_returns.extend(wti_ret.where(pred_dir == "up", 0).tolist())
-            spy_ret = spy.pct_change().reindex(y_dir_test.index)
+            spy_ret = (spy.shift(-horizon) / spy - 1).reindex(y_dir_test.index)
             spy_returns.extend(spy_ret.tolist())
 
         n_windows += 1

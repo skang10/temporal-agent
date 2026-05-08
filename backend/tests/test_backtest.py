@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.eval.backtest import _annualised_sharpe, walk_forward_backtest
 
@@ -62,6 +63,48 @@ def test_walk_forward_backtest_sharpes_are_floats():
 
     assert isinstance(result["strategy_sharpe"], float)
     assert isinstance(result["benchmark_sharpe"], float)
+
+
+def test_walk_forward_backtest_excludes_direction_labels_that_resolve_in_test_window():
+    features, wti, spy = _make_data(n=60)
+    observed_train_label_max_dates: list[pd.Timestamp] = []
+
+    def direction_factory(*_args: object, **_kwargs: object) -> MagicMock:
+        clf = _mock_clf("up")
+        clf.fit.side_effect = lambda _X, y: observed_train_label_max_dates.append(y.index.max())
+        return clf
+
+    with (
+        patch("src.eval.backtest.OilRegimeClassifier", return_value=_mock_clf("range_bound")),
+        patch("src.eval.backtest.DirectionClassifier", side_effect=direction_factory),
+    ):
+        walk_forward_backtest(features, wti, spy, horizon=5, step=20, min_train=20)
+
+    assert observed_train_label_max_dates
+    assert observed_train_label_max_dates[0] < features.index[20 - 5]
+
+
+def test_walk_forward_backtest_scores_forward_horizon_returns():
+    features, wti, spy = _make_data(n=40)
+    wti = pd.Series(100.0, index=features.index, name="CL=F")
+    spy = pd.Series(100.0, index=features.index, name="SPY")
+    wti.iloc[15] = 110.0
+    spy.iloc[15] = 105.0
+    captured_returns: list[list[float]] = []
+
+    def fake_sharpe(returns: list[float]) -> float:
+        captured_returns.append(returns)
+        return 0.0
+
+    with (
+        patch("src.eval.backtest.OilRegimeClassifier", return_value=_mock_clf("range_bound")),
+        patch("src.eval.backtest.DirectionClassifier", return_value=_mock_clf("up")),
+        patch("src.eval.backtest._annualised_sharpe", side_effect=fake_sharpe),
+    ):
+        walk_forward_backtest(features, wti, spy, horizon=5, step=20, min_train=10)
+
+    assert captured_returns[0][0] == pytest.approx(0.10)
+    assert captured_returns[1][0] == pytest.approx(0.05)
 
 
 def test_annualised_sharpe_zero_for_constant_returns():

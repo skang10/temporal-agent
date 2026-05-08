@@ -121,9 +121,11 @@ def test_detect_drift_raises_without_features(ctx):
 
 # ── evaluate_features ──────────────────────────────────────────────────────────
 
+import sys  # noqa: E402
+from types import SimpleNamespace  # noqa: E402
 from unittest.mock import MagicMock  # noqa: E402
 
-from src.agent.tools import evaluate_features  # noqa: E402
+from src.agent.tools import _compute_shap_values, evaluate_features  # noqa: E402
 
 
 def test_evaluate_features_returns_ranked_top_features(ctx):
@@ -149,6 +151,47 @@ def test_evaluate_features_returns_ranked_top_features(ctx):
     assert result["top_features"][1]["name"] == "f0"
     assert result["n_features_evaluated"] == 5
     assert ctx.shap_result is not None
+
+
+def test_evaluate_features_accepts_2d_shap_values(ctx):
+    n_samples, n_features = 20, 5
+    dates = pd.date_range("2022-01-01", periods=n_samples, freq="B")
+    shap_vals = np.zeros((n_samples, n_features))
+    shap_vals[:, 3] = 2.0
+    shap_vals[:, 1] = 1.0
+
+    ctx._regime_clf = MagicMock()
+    ctx._regime_X_test = pd.DataFrame(
+        np.random.randn(n_samples, n_features),
+        index=dates,
+        columns=["f0", "f1", "f2", "f3", "f4"],
+    )
+
+    with patch("src.agent.tools._compute_shap_values", return_value=shap_vals):
+        result = evaluate_features(top_n=2, context=ctx)
+
+    assert result["top_features"] == [
+        {"name": "f3", "importance": 2.0},
+        {"name": "f1", "importance": 1.0},
+    ]
+
+
+def test_compute_shap_values_uses_tabpfn_extensions_get_shap_values(monkeypatch):
+    X = pd.DataFrame([[1.0, 2.0]], columns=["f0", "f1"])
+    clf = MagicMock()
+    expected = np.array([[0.1, 0.2]])
+    fake_shap = SimpleNamespace(get_shap_values=MagicMock(return_value=expected))
+
+    monkeypatch.setitem(
+        sys.modules,
+        "tabpfn_extensions.interpretability.shap",
+        fake_shap,
+    )
+
+    result = _compute_shap_values(clf, X)
+
+    assert result is expected
+    fake_shap.get_shap_values.assert_called_once_with(clf, X)
 
 
 def test_evaluate_features_raises_without_regime_clf(ctx):

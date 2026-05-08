@@ -28,3 +28,13 @@ def test_settings_has_gpr_cache_ttl_hours():
     from src.config import settings
 
     assert settings.gpr_cache_ttl_hours == 24
+
+
+def test_blank_gpr_env_values_fall_back_to_defaults(monkeypatch):
+    monkeypatch.setenv("GPR_DATA_URL", "")
+    monkeypatch.setenv("GPR_CACHE_TTL_HOURS", "")
+
+    s = Settings()
+
+    assert s.gpr_data_url == "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls"
+    assert s.gpr_cache_ttl_hours == 24
