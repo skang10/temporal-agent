@@ -104,6 +104,28 @@ TOOL_PHASES = {
 }
 
 
+def estimate_tabpfn_calls(
+    analysis_mode: Literal["quick", "full"], tasks: list[str]
+) -> dict[str, Any]:
+    task_names = {task.lower() for task in tasks}
+    quick_backtest = analysis_mode == "quick" and bool(
+        {"backtest", "historical_validation"} & task_names
+    )
+    known_calls = 3  # regime + direction + lightweight/full SHAP
+    unknown_backtest = analysis_mode == "full"
+    if quick_backtest:
+        known_calls += 6  # max_windows=3, two TabPFN models per window
+    return {
+        "known_calls": known_calls,
+        "unknown_backtest": unknown_backtest,
+        "note": (
+            "Full backtest call count depends on feature row count"
+            if unknown_backtest
+            else "Estimate includes configured TabPFN-backed tools"
+        ),
+    }
+
+
 def phase_for_tool(name: str, arguments: dict[str, Any]) -> str:
     if name == "run_tabpfn":
         task = arguments.get("task")
@@ -112,6 +134,21 @@ def phase_for_tool(name: str, arguments: dict[str, Any]) -> str:
         if task == "direction":
             return "predicting_direction"
     return TOOL_PHASES.get(name, "running_tool")
+
+
+def tabpfn_calls_for_tool(name: str, arguments: dict[str, Any], result: dict[str, Any]) -> int:
+    if name == "run_tabpfn":
+        return 1
+    if name == "evaluate_features":
+        return 1
+    if name == "backtest":
+        max_windows = arguments.get("max_windows")
+        n_windows = result.get("n_windows")
+        if isinstance(n_windows, int):
+            return n_windows * 2
+        if isinstance(max_windows, int):
+            return max_windows * 2
+    return 0
 
 
 async def _publish(redis_client: aioredis.Redis, channel: str, message: dict) -> None:  # type: ignore[type-arg]
@@ -127,6 +164,25 @@ async def _publish_phase(
 ) -> None:
     log.info("agent.phase", run_id=str(run_id), phase=phase, tool=tool)
     await _publish(redis_client, channel, {"type": "phase", "phase": phase, "tool": tool})
+
+
+async def _publish_tabpfn_progress(
+    redis_client: aioredis.Redis,  # type: ignore[type-arg]
+    channel: str,
+    run_id: uuid.UUID,
+    estimate: dict[str, Any],
+    completed_calls: int,
+    tool: str | None = None,
+) -> None:
+    payload = {
+        "type": "tabpfn_progress",
+        "completed_calls": completed_calls,
+        "estimated_calls": estimate["known_calls"],
+        "unknown_backtest": estimate["unknown_backtest"],
+        "tool": tool,
+    }
+    log.info("agent.tabpfn_progress", run_id=str(run_id), **payload)
+    await _publish(redis_client, channel, payload)
 
 
 async def _raise_if_canceled(run_id: uuid.UUID) -> None:
@@ -182,6 +238,14 @@ async def run_agent_loop(
 
         log.info("agent.loop.start", run_id=str(run_id), model=settings.agent_model)
         await _publish_phase(redis_client, channel, run_id, "starting")
+        tabpfn_estimate = estimate_tabpfn_calls(analysis_mode, tasks)
+        tabpfn_completed_calls = 0
+        log.info("agent.tabpfn_estimate", run_id=str(run_id), **tabpfn_estimate)
+        await _publish(
+            redis_client,
+            channel,
+            {"type": "tabpfn_estimate", **tabpfn_estimate},
+        )
         last_text = ""
         total_input_tokens = 0
         total_output_tokens = 0
@@ -237,6 +301,17 @@ async def run_agent_loop(
                     )
                     result = await asyncio.to_thread(registry.dispatch, name, arguments, context)
                     await _raise_if_canceled(run_id)
+                    completed_for_tool = tabpfn_calls_for_tool(name, arguments, result)
+                    tabpfn_completed_calls += completed_for_tool
+                    if completed_for_tool:
+                        await _publish_tabpfn_progress(
+                            redis_client,
+                            channel,
+                            run_id,
+                            tabpfn_estimate,
+                            tabpfn_completed_calls,
+                            tool=name,
+                        )
                     await _publish(
                         redis_client,
                         channel,

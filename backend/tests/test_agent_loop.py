@@ -7,7 +7,14 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from src.agent.loop import RunCanceled, build_system_prompt, phase_for_tool, run_agent_loop
+from src.agent.loop import (
+    RunCanceled,
+    build_system_prompt,
+    estimate_tabpfn_calls,
+    phase_for_tool,
+    run_agent_loop,
+    tabpfn_calls_for_tool,
+)
 from src.db.models import RunStatus
 
 
@@ -93,6 +100,34 @@ def test_phase_for_tool_maps_other_tools() -> None:
     assert phase_for_tool("fetch_data", {}) == "fetching_market_data"
     assert phase_for_tool("evaluate_features", {}) == "evaluating_features"
     assert phase_for_tool("backtest", {}) == "backtesting"
+
+
+def test_estimate_tabpfn_calls_quick_without_backtest() -> None:
+    estimate = estimate_tabpfn_calls("quick", ["regime_classification"])
+
+    assert estimate["known_calls"] == 3
+    assert estimate["unknown_backtest"] is False
+
+
+def test_estimate_tabpfn_calls_quick_with_backtest() -> None:
+    estimate = estimate_tabpfn_calls("quick", ["backtest"])
+
+    assert estimate["known_calls"] == 9
+    assert estimate["unknown_backtest"] is False
+
+
+def test_estimate_tabpfn_calls_full_marks_unknown_backtest() -> None:
+    estimate = estimate_tabpfn_calls("full", ["regime_classification"])
+
+    assert estimate["known_calls"] == 3
+    assert estimate["unknown_backtest"] is True
+
+
+def test_tabpfn_calls_for_tool() -> None:
+    assert tabpfn_calls_for_tool("run_tabpfn", {"task": "regime"}, {}) == 1
+    assert tabpfn_calls_for_tool("run_tabpfn", {"task": "direction"}, {}) == 1
+    assert tabpfn_calls_for_tool("evaluate_features", {}, {}) == 1
+    assert tabpfn_calls_for_tool("backtest", {"max_windows": 3}, {"n_windows": 3}) == 6
 
 
 @pytest.mark.asyncio
@@ -183,3 +218,39 @@ async def test_run_agent_loop_marks_failed_when_max_iterations_exhausted() -> No
     assert phases[0] == "starting"
     assert "explaining" in phases
     assert phases[-1] == "failed"
+
+
+@pytest.mark.asyncio
+async def test_run_agent_loop_publishes_tabpfn_estimate_and_progress() -> None:
+    run = MagicMock()
+    sessions = _SessionFactory(run)
+    redis_client = AsyncMock()
+    openai_client = MagicMock()
+    openai_client.chat.completions.create = AsyncMock(
+        side_effect=[
+            _tool_call_response("run_tabpfn"),
+            SimpleNamespace(
+                usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5),
+                choices=[
+                    SimpleNamespace(
+                        finish_reason="stop",
+                        message=SimpleNamespace(content="done"),
+                    )
+                ],
+            ),
+        ]
+    )
+
+    with (
+        patch("src.agent.loop.AsyncSession", sessions),
+        patch("src.agent.loop.aioredis.from_url", return_value=redis_client),
+        patch("src.agent.loop.openai.AsyncOpenAI", return_value=openai_client),
+        patch("src.agent.loop.registry.dispatch", return_value={"task": "regime"}),
+    ):
+        await run_agent_loop(uuid.uuid4(), "2024-01-01", "2024-02-01", ["regime"])
+
+    messages = [json.loads(call.args[1]) for call in redis_client.publish.await_args_list]
+    assert any(message.get("type") == "tabpfn_estimate" for message in messages)
+    progress = [message for message in messages if message.get("type") == "tabpfn_progress"]
+    assert progress
+    assert progress[-1]["completed_calls"] == 1
