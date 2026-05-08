@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=PROJECT_ROOT / ".env",
         env_file_encoding="utf-8",
+        env_ignore_empty=True,
         extra="ignore",
     )
 
@@ -30,6 +31,9 @@ class Settings(BaseSettings):
     tabpfn_token: str = ""
 
     sentry_dsn: str = ""
+
+    gpr_data_url: str = "https://www.matteoiacoviello.com/gpr_files/data_gpr_daily_recent.xls"
+    gpr_cache_ttl_hours: int = 24
 
     cors_origins: list[str] = ["http://localhost:3000"]
 

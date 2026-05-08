@@ -9,3 +9,4 @@ class RunResult(BaseModel):
     run_id: str
     status: RunStatus
     result: dict[str, Any] | None = None
+    error: str | None = None

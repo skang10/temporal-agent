@@ -3,11 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from src.agent.registry import registry
 from src.config import settings
 from src.data.connectors import fetch_fred_series, fetch_price_series
+from src.data.gpr import fetch_gpr_series
 from src.featurizer import TimeSeriesFeaturizer
 from src.inference import DirectionClassifier, OilRegimeClassifier
 
@@ -29,6 +31,13 @@ class AgentContext:
     features: pd.DataFrame | None = None
     regime_result: dict[str, Any] | None = None
     direction_result: dict[str, Any] | None = None
+    backtest_result: dict[str, Any] | None = None
+    drift_result: dict[str, Any] | None = None
+    shap_result: dict[str, Any] | None = None
+    _regime_clf: Any | None = None
+    _regime_X_test: pd.DataFrame | None = None
+    _regime_y_test: pd.Series | None = None
+    data_manifest: dict[str, Any] = field(default_factory=dict)
 
 
 def _make_regime_labels(wti: pd.Series, index: pd.DatetimeIndex) -> pd.Series:
@@ -81,6 +90,12 @@ def fetch_data(tickers: list[str], fred_series: list[str], context: AgentContext
         series = fetch_price_series(ticker, context.date_range_start, context.date_range_end)
         context.signals[ticker] = series
         fetched[ticker] = len(series)
+        context.data_manifest.setdefault("data_sources", {})[ticker] = {
+            "rows": len(series),
+            "start": context.date_range_start,
+            "end": context.date_range_end,
+            "provider": "yfinance",
+        }
 
     for series_id in fred_series:
         if not settings.fred_api_key:
@@ -94,6 +109,12 @@ def fetch_data(tickers: list[str], fred_series: list[str], context: AgentContext
         )
         context.signals[series_id] = series
         fetched[series_id] = len(series)
+        context.data_manifest.setdefault("data_sources", {})[series_id] = {
+            "rows": len(series),
+            "start": context.date_range_start,
+            "end": context.date_range_end,
+            "provider": "fredapi",
+        }
 
     return {"fetched": fetched, "skipped": skipped}
 
@@ -166,6 +187,9 @@ def run_tabpfn(task: str, horizon: int = 20, context: AgentContext | None = None
         y_train = labels.iloc[:split]
         regime_clf = OilRegimeClassifier(n_estimators=8)
         regime_clf.fit(X_train, y_train)
+        context._regime_clf = regime_clf
+        context._regime_X_test = X_test
+        context._regime_y_test = labels.iloc[split:]
         pred = regime_clf.predict(X_test)
         proba = regime_clf.predict_proba(X_test)
         uncertainty = regime_clf.uncertainty(X_test)
@@ -264,3 +288,182 @@ def explain_prediction(
         "confidence": confidence,
         "key_features": key_features,
     }
+
+
+def _psi(expected: np.ndarray, actual: np.ndarray, buckets: int = 10) -> float:
+    """Population Stability Index between two distributions."""
+    breakpoints = np.percentile(expected, np.linspace(0, 100, buckets + 1))
+    expected_dist = np.histogram(expected, bins=breakpoints)[0] / len(expected)
+    actual_dist = np.histogram(actual, bins=breakpoints)[0] / len(actual)
+    expected_dist = np.clip(expected_dist, 1e-4, None)
+    actual_dist = np.clip(actual_dist, 1e-4, None)
+    return float(np.sum((actual_dist - expected_dist) * np.log(actual_dist / expected_dist)))
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+)
+def detect_drift(context: AgentContext) -> dict[str, Any]:
+    """Detect feature distribution drift using KS test and PSI on historical vs recent data."""
+    if context.features is None:
+        raise ValueError("No features in context. Call engineer_features first.")
+
+    from scipy.stats import ks_2samp
+
+    features = context.features.dropna()
+    split = int(len(features) * 0.8)
+    historical = features.iloc[:split]
+    recent = features.iloc[split:]
+
+    ks_results: dict[str, Any] = {}
+    drifted: list[str] = []
+    for col in features.columns:
+        stat, pval = ks_2samp(historical[col].values, recent[col].values)
+        ks_results[col] = {"statistic": round(float(stat), 4), "p_value": round(float(pval), 4)}
+        if pval < 0.05:
+            drifted.append(col)
+
+    psi_score = float(
+        np.mean([_psi(historical[col].values, recent[col].values) for col in features.columns])
+    )
+
+    context.drift_result = {
+        "drift_detected": psi_score >= 0.1,
+        "psi_score": round(psi_score, 4),
+        "drifted_features": drifted,
+        "ks_results": ks_results,
+    }
+    return context.drift_result
+
+
+def _compute_shap_values(clf: OilRegimeClassifier, X: pd.DataFrame) -> Any:
+    from tabpfn_extensions.interpretability.shap import get_shap_values
+
+    return get_shap_values(clf, X)
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {
+            "top_n": {
+                "type": "integer",
+                "description": "Number of top features to return by SHAP importance. Default 10.",
+                "default": 10,
+            },
+            "max_samples": {
+                "type": "integer",
+                "description": "Maximum latest test rows to explain with SHAP. Default 50.",
+                "default": 50,
+            },
+        },
+        "required": [],
+    }
+)
+def evaluate_features(
+    top_n: int = 10, max_samples: int = 50, context: AgentContext | None = None
+) -> dict[str, Any]:
+    """Compute SHAP feature importances using the fitted regime classifier."""
+    if context is None or context._regime_clf is None or context._regime_X_test is None:
+        raise ValueError(
+            "No fitted regime classifier in context. Call run_tabpfn(task='regime') first."
+        )
+
+    X_explain = (
+        context._regime_X_test.tail(max_samples) if max_samples > 0 else context._regime_X_test
+    )
+    shap_vals = _compute_shap_values(context._regime_clf, X_explain)
+    values = getattr(shap_vals, "values", shap_vals)
+    shap_array = np.asarray(values)
+    if shap_array.ndim == 3:
+        importance = np.abs(shap_array).mean(axis=(0, 2))
+    elif shap_array.ndim == 2:
+        importance = np.abs(shap_array).mean(axis=0)
+    else:
+        raise ValueError(f"Unexpected SHAP values shape: {shap_array.shape}")
+
+    feature_names = list(X_explain.columns)
+    ranked = sorted(zip(feature_names, importance.tolist()), key=lambda x: x[1], reverse=True)
+
+    top = [{"name": name, "importance": round(imp, 4)} for name, imp in ranked[:top_n]]
+
+    context.shap_result = {
+        "top_features": top,
+        "n_features_evaluated": len(feature_names),
+        "n_samples_explained": len(X_explain),
+    }
+    return context.shap_result
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {},
+        "required": [],
+    }
+)
+def fetch_geopolitical_risk(context: AgentContext) -> dict[str, Any]:
+    """Fetch the Geopolitical Risk (GPR) index and add it to context signals."""
+    series = fetch_gpr_series(context.date_range_start, context.date_range_end)
+    context.signals["GPR"] = series
+    context.data_manifest.setdefault("data_sources", {})["GPR"] = {
+        "rows": len(series),
+        "start": context.date_range_start,
+        "end": context.date_range_end,
+        "provider": "matteoiacoviello.com",
+    }
+    return {"fetched": {"GPR": len(series)}}
+
+
+@registry.tool(
+    parameters={
+        "type": "object",
+        "properties": {
+            "horizon": {
+                "type": "integer",
+                "description": "Forward-return horizon in trading days. Default 20.",
+                "default": 20,
+            },
+            "step": {
+                "type": "integer",
+                "description": "Walk-forward step size in days. Default 20.",
+                "default": 20,
+            },
+            "max_windows": {
+                "type": ["integer", "null"],
+                "description": "Maximum number of most recent walk-forward windows. Omit for all.",
+            },
+        },
+        "required": [],
+    }
+)
+def backtest(
+    horizon: int = 20,
+    step: int = 20,
+    max_windows: int | None = None,
+    context: AgentContext | None = None,
+) -> dict[str, Any]:
+    """Walk-forward backtest: regime accuracy + direction strategy Sharpe vs SPY buy-and-hold."""
+    if context is None or context.features is None:
+        raise ValueError("No features in context. Call engineer_features first.")
+    if "CL=F" not in context.signals:
+        raise ValueError("WTI signal ('CL=F') not found. Call fetch_data first.")
+    if "SPY" not in context.signals:
+        raise ValueError("SPY signal not found. Call fetch_data with tickers=['CL=F', ..., 'SPY'].")
+
+    from src.eval.backtest import walk_forward_backtest as _wfb
+
+    result = _wfb(
+        features=context.features.dropna(),
+        wti=context.signals["CL=F"],
+        spy=context.signals["SPY"],
+        horizon=horizon,
+        step=step,
+        max_windows=max_windows,
+    )
+    context.backtest_result = result
+    return result

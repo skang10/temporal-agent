@@ -16,6 +16,7 @@ class RunStatus(StrEnum):
     RUNNING = "running"
     COMPLETED = "completed"
     FAILED = "failed"
+    CANCELED = "canceled"
 
 
 class Run(SQLModel, table=True):
