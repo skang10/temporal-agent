@@ -17,14 +17,15 @@ frontend/
 │   └── page.tsx            — top bar + split-pane shell; reads from Zustand store
 ├── components/
 │   ├── TopBar.tsx          — date inputs, Quick/Full toggle, Run button, Cancel, theme icon
-│   ├── AgentStream.tsx     — left pane; consumes useRunStream, renders messages
+│   ├── AgentStream.tsx     — container; consumes useRunStream, passes props to view
+│   ├── AgentStreamView.tsx — presentational; renders message list from props (no hooks)
 │   ├── ResultsPanel.tsx    — right pane; reads result from store, renders sub-cards
 │   ├── RegimeCard.tsx      — regime label + confidence bar
 │   ├── DirectionCard.tsx   — up/down arrow + confidence bar
 │   └── SummaryPanel.tsx    — agent natural-language summary (prose)
 ├── lib/
 │   ├── store.ts            — Zustand: { runId, status, result, setRun, clearRun }
-│   ├── api.ts              — existing (unchanged)
+│   ├── api.ts              — add cancelRun(runId) → DELETE /api/runs/{runId}
 │   └── websocket.ts        — existing (unchanged)
 └── package.json            — add: next-themes
 ```
@@ -64,7 +65,11 @@ Sticky header bar. Contains:
 
 ### AgentStream
 
-Left pane of the split layout. Subscribes to `useRunStream(runId)`.
+Left pane of the split layout. Split into two layers for testability:
+- `AgentStream.tsx` — container; calls `useRunStream(runId)`, passes `messages` and `connected` as props to `AgentStreamView`
+- `AgentStreamView.tsx` — pure presentational component; renders the message list given props, no hooks
+
+Subscribes to `useRunStream(runId)` via the container.
 
 Renders each `StreamMessage` with a distinct visual treatment:
 
