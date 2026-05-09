@@ -39,3 +39,7 @@ skills-lock.json
 
 # Git worktrees
 .worktrees/
+.superpowers/
+
+# Playwright
+.playwright-mcp/

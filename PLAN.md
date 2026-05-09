@@ -49,9 +49,10 @@ Most real-world prediction problems have both a temporal dimension (things chang
 | Session 1 | Data connectors (yfinance, FRED, EIA) + `TimeSeriesFeaturizer` | ✅ Done — PR #43 |
 | Session 2 | `OilRegimeClassifier` + `DirectionClassifier` (tabpfn-client) | ✅ Done — PR #45 |
 | Session 3 | `src/db/` — SQLModel run/history models + Alembic migration | ✅ Done — PR #51 |
-| Session 4 | `src/agent/` — tool registry + 4 core tools + ReAct loop (OpenAI SDK) | In progress |
-| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub + deferred tools (`detect_drift`, `backtest`, `evaluate_features`, `fetch_geopolitical_risk`) | Pending |
-| Session 6 | Frontend — RegimeDashboard + AgentStream components | Pending |
+| Session 4 | `src/agent/` — tool registry + 4 core tools + ReAct loop (OpenAI SDK) | ✅ Done — PR #56 |
+| Session 5 | Wire up API routes (replace 501s) + WebSocket Redis pub/sub + deferred tools (`detect_drift`, `backtest`, `evaluate_features`, `fetch_geopolitical_risk`) | ✅ Done — PR #56 |
+| Session 6 | Frontend core — split-pane layout, AgentStream, RegimeCard, DirectionCard, SummaryPanel | Pending |
+| Session 7 | Frontend charts — DriftAlert, FeatureImportance (SHAP), BacktestChart | Pending |
 
 See `docs/BACKLOG.md` for known issues and deferred improvements.
 
