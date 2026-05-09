@@ -1,18 +1,45 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const REQUEST_TIMEOUT_MS = 30_000;
 
-export type RunStatus = "pending" | "running" | "completed" | "failed";
+export type RunStatus = "pending" | "running" | "completed" | "failed" | "canceled";
 
 export type AnalyzeRequest = {
   date_range_start: string;
   date_range_end: string;
   tasks?: string[];
+  analysis_mode?: "quick" | "full";
+};
+
+export type RegimeResult = {
+  regime: string;
+  confidence: number;
+  entropy: number;
+  distribution: Record<string, number>;
+};
+
+export type DirectionResult = {
+  direction: string;
+  confidence: number;
+  entropy: number;
+  prediction_date: string;
+  distribution: Record<string, number>;
+};
+
+export type AnalysisResult = {
+  regime: RegimeResult | null;
+  direction: DirectionResult | null;
+  drift: unknown;
+  feature_importance: unknown;
+  backtest: unknown;
+  summary: string;
+  usage: { input_tokens: number; output_tokens: number; estimated_cost_usd: number };
+  data_manifest: unknown;
 };
 
 export type RunResult = {
   run_id: string;
   status: RunStatus;
-  result: Record<string, unknown> | null;
+  result: AnalysisResult | null;
 };
 
 export type HistoryItem = {
@@ -58,6 +85,11 @@ export const api = {
 
   getRun: (runId: string) =>
     request<RunResult>(`/api/runs/${runId}`),
+
+  cancelRun: (runId: string) =>
+    request<{ run_id: string; status: RunStatus }>(`/api/runs/${runId}/cancel`, {
+      method: "POST",
+    }),
 
   getHistory: () =>
     request<HistoryItem[]>("/api/history"),
