@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "next-themes";
 import { useRunStore } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -10,7 +10,10 @@ export function TopBar() {
   const [end, setEnd] = useState("2023-06-30");
   const [mode, setMode] = useState<"quick" | "full">("quick");
   const [topbarError, setTopbarError] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+
+  useEffect(() => setMounted(true), []);
   const { runId, status, setRun, clearRun } = useRunStore();
 
   const isRunning = status === "running";
@@ -112,7 +115,7 @@ export function TopBar() {
           className="p-1.5 rounded border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
           aria-label="Toggle theme"
         >
-          {theme === "dark" ? "☀" : "🌙"}
+          {mounted ? (theme === "dark" ? "☀" : "🌙") : "☀"}
         </button>
       </div>
     </header>
