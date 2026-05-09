@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import { useRunStore } from "@/lib/store";
 import { api } from "@/lib/api";
@@ -10,10 +10,13 @@ export function TopBar() {
   const [end, setEnd] = useState("2023-06-30");
   const [mode, setMode] = useState<"quick" | "full">("quick");
   const [topbarError, setTopbarError] = useState<string | null>(null);
-  const [mounted, setMounted] = useState(false);
   const { theme, setTheme } = useTheme();
+  const mounted = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
-  useEffect(() => setMounted(true), []);
   const { runId, status, setRun, clearRun } = useRunStore();
 
   const isRunning = status === "running";
