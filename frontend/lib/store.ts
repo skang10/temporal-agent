@@ -1,16 +1,16 @@
 import { create } from "zustand";
 import type { AnalysisResult } from "./api";
 
-type RunStatus = "idle" | "running" | "completed" | "failed";
+type StoreStatus = "idle" | "running" | "completed" | "failed";
 
 type RunStore = {
   runId: string | null;
-  status: RunStatus;
+  status: StoreStatus;
   result: AnalysisResult | null;
   error: string | null;
   setRun: (runId: string) => void;
   setResult: (result: AnalysisResult) => void;
-  setStatus: (status: RunStatus) => void;
+  setStatus: (status: StoreStatus) => void;
   setError: (error: string) => void;
   clearRun: () => void;
 };
