@@ -40,7 +40,7 @@ dependencies = [
     "openai>=2.36.0",
     # Observability
     "structlog>=24.4.0",
-    "sentry-sdk[fastapi]>=2.59.0",
+    "sentry-sdk[fastapi]>=2.60.0",
     # Auth
     "python-jose[cryptography]>=3.5.0",
     "passlib[bcrypt]>=1.7.4",
